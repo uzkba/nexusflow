@@ -1,0 +1,26 @@
+# --- Variáveis de ambiente ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+.vite/
+
+# --- Docker ---
+*.log
+
+# --- Editor / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
