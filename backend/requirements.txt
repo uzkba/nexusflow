@@ -6,3 +6,7 @@ alembic
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
+pytest
+pytest-asyncio
+testcontainers[postgres]
+psycopg[binary]
