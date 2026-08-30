@@ -11,12 +11,17 @@ __pycache__/
 venv/
 *.egg-info/
 
+# --- Testes ---
+.pytest_cache/
+.coverage
+htmlcov/
+
 # --- Node / Frontend ---
 node_modules/
 dist/
 .vite/
 
-# --- Docker ---
+# --- Docker / Logs ---
 *.log
 
 # --- Editor / SO ---
