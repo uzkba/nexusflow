@@ -22,7 +22,6 @@ from app.enum import (
     UserRole,
 )
 
-
 class Base(DeclarativeBase):
     pass
 
@@ -43,7 +42,9 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="usuario")
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="usuario", passive_deletes=True
+    )
 
 
 class RefreshToken(Base):
@@ -92,7 +93,6 @@ class RawName(Base):
     )
     total_ocorrencias: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
-
 class PendingConsolidation(Base):
     __tablename__ = "consolidacoes_pendentes"
 
@@ -128,11 +128,10 @@ class ConsolidationCeg(Base):
 
     consolidacao: Mapped["PendingConsolidation"] = relationship(back_populates="cegs_relacionados")
 
-
 class GenerationProject(Base):
     __tablename__ = "projetos_geracao"
 
-    ceg: Mapped[str] = mapped_column(Text, primary_key=True)
+    ceg: Mapped[str] = mapped_column(Text, primary_key=True)  # Código Único ANEEL — chave natural
     nome_projeto: Mapped[str | None] = mapped_column(Text, nullable=True)
     cliente_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True, index=True
@@ -157,7 +156,6 @@ class GenerationProject(Base):
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
 class EtlRun(Base):
     __tablename__ = "etl_runs"
 
