@@ -1,7 +1,7 @@
-from app.enum.consolidacao import ConsolidationStatus
-from app.enum.etl import EtlRunStatus
-from app.enum.projeto_geracao import GenerationSource, PlantPhase, ReviewStatus
-from app.enum.usuario import UserRole
+from backend.app.enum.consolidacao import ConsolidationStatus
+from backend.app.enum.etl import EtlRunStatus
+from backend.app.enum.projeto_geracao import GenerationSource, PlantPhase, ReviewStatus
+from backend.app.enum.usuario import UserRole
 
 __all__ = [
     "UserRole",

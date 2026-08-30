@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from app.enum import (
+from backend.app.enum import (
     ConsolidationStatus,
     EtlRunStatus,
     ReviewStatus,
