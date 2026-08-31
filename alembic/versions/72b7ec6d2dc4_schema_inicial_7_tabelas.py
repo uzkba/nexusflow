@@ -1,8 +1,8 @@
 """schema inicial - 7 tabelas
 
-Revision ID: 7ef2002dd203
+Revision ID: 72b7ec6d2dc4
 Revises: 
-Create Date: 2026-08-29 00:24:11.056394
+Create Date: 2026-08-30 17:44:28.236892
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '7ef2002dd203'
+revision: str = '72b7ec6d2dc4'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -53,8 +53,11 @@ def upgrade() -> None:
     sa.Column('nome_bruto', sa.Text(), nullable=False),
     sa.Column('cliente_id', sa.UUID(), nullable=True),
     sa.Column('primeira_ocorrencia', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('ultima_ocorrencia', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('total_ocorrencias', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['cliente_id'], ['clientes.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('nome_bruto')
     )
     op.create_table('projetos_geracao',
     sa.Column('ceg', sa.Text(), nullable=False),
@@ -62,18 +65,20 @@ def upgrade() -> None:
     sa.Column('cliente_id', sa.UUID(), nullable=True),
     sa.Column('uf', sa.String(length=2), nullable=True),
     sa.Column('municipios', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('origem', sa.Enum('solar', 'eolica', name='origem_geracao'), nullable=True),
-    sa.Column('fase', sa.Enum('construcao_nao_iniciada', name='fase_usina'), nullable=True),
+    sa.Column('origem', sa.String(), nullable=True),
+    sa.Column('fase', sa.String(), nullable=True),
     sa.Column('potencia_outorgada_kw', sa.Float(), nullable=True),
     sa.Column('inicio_vigencia_ano', sa.Integer(), nullable=True),
     sa.Column('latitude', sa.Float(), nullable=True),
     sa.Column('longitude', sa.Float(), nullable=True),
-    sa.Column('status_revisao', sa.Enum('pendente', 'aprovado', name='status_revisao'), nullable=False),
+    sa.Column('status_revisao', sa.Enum('pendente', 'aprovado', 'rejeitado', name='status_revisao'), nullable=False),
+    sa.Column('criado_em', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('atualizado_em', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['cliente_id'], ['clientes.id'], ),
     sa.PrimaryKeyConstraint('ceg')
     )
     op.create_index(op.f('ix_projetos_geracao_cliente_id'), 'projetos_geracao', ['cliente_id'], unique=False)
+    op.create_index(op.f('ix_projetos_geracao_criado_em'), 'projetos_geracao', ['criado_em'], unique=False)
     op.create_index(op.f('ix_projetos_geracao_fase'), 'projetos_geracao', ['fase'], unique=False)
     op.create_index(op.f('ix_projetos_geracao_inicio_vigencia_ano'), 'projetos_geracao', ['inicio_vigencia_ano'], unique=False)
     op.create_index(op.f('ix_projetos_geracao_origem'), 'projetos_geracao', ['origem'], unique=False)
@@ -86,7 +91,7 @@ def upgrade() -> None:
     sa.Column('expira_em', sa.DateTime(timezone=True), nullable=False),
     sa.Column('revogado_em', sa.DateTime(timezone=True), nullable=True),
     sa.Column('substituido_por_id', sa.UUID(), nullable=True),
-    sa.ForeignKeyConstraint(['substituido_por_id'], ['refresh_tokens.id'], ),
+    sa.ForeignKeyConstraint(['substituido_por_id'], ['refresh_tokens.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -97,7 +102,6 @@ def upgrade() -> None:
     sa.Column('nome_bruto_id', sa.Integer(), nullable=False),
     sa.Column('cliente_sugerido_id', sa.UUID(), nullable=False),
     sa.Column('score_similaridade', sa.Float(), nullable=False),
-    sa.Column('cegs_relacionados', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('status', sa.Enum('pendente', 'aprovado', 'rejeitado', name='status_consolidacao'), nullable=False),
     sa.Column('decidido_por', sa.UUID(), nullable=True),
     sa.Column('decidido_em', sa.DateTime(timezone=True), nullable=True),
@@ -106,12 +110,20 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['nome_bruto_id'], ['nomes_brutos.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('consolidacao_ceg',
+    sa.Column('consolidacao_id', sa.Integer(), nullable=False),
+    sa.Column('ceg', sa.Text(), nullable=False),
+    sa.ForeignKeyConstraint(['ceg'], ['projetos_geracao.ceg'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['consolidacao_id'], ['consolidacoes_pendentes.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('consolidacao_id', 'ceg')
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('consolidacao_ceg')
     op.drop_table('consolidacoes_pendentes')
     op.drop_index(op.f('ix_refresh_tokens_usuario_id'), table_name='refresh_tokens')
     op.drop_index(op.f('ix_refresh_tokens_token_hash'), table_name='refresh_tokens')
@@ -120,6 +132,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_projetos_geracao_origem'), table_name='projetos_geracao')
     op.drop_index(op.f('ix_projetos_geracao_inicio_vigencia_ano'), table_name='projetos_geracao')
     op.drop_index(op.f('ix_projetos_geracao_fase'), table_name='projetos_geracao')
+    op.drop_index(op.f('ix_projetos_geracao_criado_em'), table_name='projetos_geracao')
     op.drop_index(op.f('ix_projetos_geracao_cliente_id'), table_name='projetos_geracao')
     op.drop_table('projetos_geracao')
     op.drop_table('nomes_brutos')
