@@ -1,0 +1,39 @@
+# Ambientes virtuais (Windows/local) — nao tem serventia dentro do container Linux
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Controle de versao
+.git/
+.gitignore
+
+# Caches Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node/frontend, se existir no mesmo repo
+node_modules/
+dist/
+build/
+
+# Variaveis de ambiente reais (nunca devem ir pra imagem)
+.env
+.env.local
+.env.*.local
+
+# Editores/IDE
+.vscode/
+.idea/
+*.swp
+
+# Dados brutos baixados do SIGA (potencialmente grandes, nao precisam estar na imagem)
+backend/data/raw/
+
+# Docs e arquivos soltos que nao afetam o build
+README.md
+*.md

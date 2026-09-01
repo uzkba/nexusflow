@@ -1,7 +1,11 @@
 # Dockerfile — Backend (FastAPI)
-# Alembic fica na raiz do projeto (fora desta pasta) e é montado via volume
-# em desenvolvimento (ver docker-compose.yml). Em produção, o alembic.ini
-# e a pasta alembic/ precisam ser copiados também (ver comentário abaixo).
+# Build context agora e' a RAIZ do projeto (nexusflow/), nao mais backend/.
+# Motivo: padronizar import em backend.app.X tanto pro Alembic (host, roda
+# da raiz) quanto pro container -- antes so' backend/ era montado como /app,
+# entao "backend.app.X" nao existia dentro do container. Ver docker-compose.yml.
+#
+# Alembic/alembic.ini agora vao junto no COPY . . (nao precisa mais de volume
+# separado nem de ajuste especial de contexto no build de producao/Railway).
 
 FROM python:3.12-slim AS base
 
@@ -16,15 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
 
-# Em build de produção (Railway), o contexto precisa incluir alembic/ e
-# alembic.ini da raiz do repo — ajustar build context no railway.json
-# quando chegar nessa etapa, já que localmente isso é resolvido via volume.
-
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
