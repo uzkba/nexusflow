@@ -13,3 +13,4 @@ psycopg[binary]
 pandas
 httpx
 python-dotenv
+pytest-cov
