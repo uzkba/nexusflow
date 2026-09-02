@@ -12,3 +12,4 @@ testcontainers[postgres]
 psycopg[binary]
 pandas
 httpx
+python-dotenv
