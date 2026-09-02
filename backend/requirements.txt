@@ -10,3 +10,7 @@ pytest
 pytest-asyncio
 testcontainers[postgres]
 psycopg[binary]
+pandas
+httpx
+python-dotenv
+pytest-cov
