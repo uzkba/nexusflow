@@ -14,3 +14,4 @@ pandas
 httpx
 python-dotenv
 pytest-cov
+rapidfuzz
