@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -95,6 +96,10 @@ class RawName(Base):
 
 class PendingConsolidation(Base):
     __tablename__ = "consolidacoes_pendentes"
+
+    __table_args__ = (
+        UniqueConstraint('nome_bruto_id', 'cliente_sugerido_id', name='uix_nome_bruto_cliente_sugerido'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nome_bruto_id: Mapped[int] = mapped_column(ForeignKey("nomes_brutos.id"), nullable=False)
