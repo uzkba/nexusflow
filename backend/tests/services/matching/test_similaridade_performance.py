@@ -36,9 +36,6 @@ def test_performance_10k_registros_nao_apresenta_gargalo():
     resultado = encontrar_correspondencias(nomes, limiar=85.0)
     duracao = time.perf_counter() - inicio
 
-    # TODO: threshold de tempo ainda não confirmado com quem definiu o
-    # critério de aceite — 60s é um chute conservador, não um número
-    # combinado. Ajustar quando isso for validado.
     assert duracao < 60.0, f"Levou {duracao:.1f}s — investigar gargalo"
     print(f"\nDuração real: {duracao:.2f}s")   # <- linha nova, só isso
     assert isinstance(resultado, list)
