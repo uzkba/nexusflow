@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    Column,
     DateTime,
     Enum,
     Float,
@@ -10,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -21,6 +23,7 @@ from backend.app.enum import (
     ReviewStatus,
     UserRole,
 )
+from backend.app.enum.consolidacao import MotivoPendenciaEnum
 
 class Base(DeclarativeBase):
     pass
@@ -96,12 +99,19 @@ class RawName(Base):
 class PendingConsolidation(Base):
     __tablename__ = "consolidacoes_pendentes"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    nome_bruto_id: Mapped[int] = mapped_column(ForeignKey("nomes_brutos.id"), nullable=False)
-    cliente_sugerido_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False
+    __table_args__ = (
+        UniqueConstraint('nome_bruto_id', 'cliente_sugerido_id', name='uix_nome_bruto_cliente_sugerido'),
     )
-    score_similaridade: Mapped[float] = mapped_column(Float)  # 0-100, via RapidFuzz
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    # Se alteracao_dado não usa esses campos, mude nullable para True:
+    nome_bruto_id: Mapped[int | None] = mapped_column(ForeignKey("nomes_brutos.id"), nullable=True)
+    cliente_sugerido_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True
+    )
+    score_similaridade: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
     status: Mapped[ConsolidationStatus] = mapped_column(
         Enum(ConsolidationStatus, name="status_consolidacao"),
         nullable=False,
@@ -112,6 +122,17 @@ class PendingConsolidation(Base):
     )
     decidido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Motivo da pendência
+    motivo_pendencia: Mapped[MotivoPendenciaEnum | None] = mapped_column(
+        Enum(MotivoPendenciaEnum, name="motivo_pendencia_enum"), 
+        nullable=True
+    )
+
+    # Colunas que faltavam para atender aos testes:
+    ceg: Mapped[str | None] = mapped_column(String, nullable=True)
+    diff_pendente: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # ou JSON
+
+    # Relacionamento 1-N
     cegs_relacionados: Mapped[list["ConsolidationCeg"]] = relationship(
         back_populates="consolidacao", cascade="all, delete-orphan"
     )
@@ -137,9 +158,7 @@ class GenerationProject(Base):
         UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True, index=True
     )
     uf: Mapped[str | None] = mapped_column(String(2), index=True)
-
     municipios: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
-
     origem: Mapped[str | None] = mapped_column(String, index=True)
     fase: Mapped[str | None] = mapped_column(String, index=True)
     potencia_outorgada_kw: Mapped[float | None] = mapped_column(Float)
@@ -151,11 +170,13 @@ class GenerationProject(Base):
     status_revisao: Mapped[ReviewStatus] = mapped_column(
         Enum(ReviewStatus, name="status_revisao"), nullable=False, default=ReviewStatus.pendente
     )
+    diff_pendente: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
 class EtlRun(Base):
     __tablename__ = "etl_runs"
 
