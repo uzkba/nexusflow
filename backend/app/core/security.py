@@ -3,7 +3,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from jose import jwt
+from jose import jwt, JWTError
 from passlib.context import CryptContext
 
 from backend.app.core.config_auth import auth_settings
@@ -38,3 +38,14 @@ def generate_refresh_token() -> str:
 
 def hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+def decode_access_token(token: str) -> dict:
+    """
+    Decodifica e valida o access token JWT.
+    Lança jose.JWTError se assinatura ou exp forem inválidos.
+    """
+    return jwt.decode(
+        token,
+        auth_settings.SECRET_KEY,
+        algorithms=[auth_settings.JWT_ALGORITHM],
+    )
