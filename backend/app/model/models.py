@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    Column,
     DateTime,
     Enum,
     Float,
@@ -22,6 +23,7 @@ from backend.app.enum import (
     ReviewStatus,
     UserRole,
 )
+from backend.app.enum.consolidacao import MotivoPendenciaEnum
 
 class Base(DeclarativeBase):
     pass
@@ -102,11 +104,14 @@ class PendingConsolidation(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    nome_bruto_id: Mapped[int] = mapped_column(ForeignKey("nomes_brutos.id"), nullable=False)
-    cliente_sugerido_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False
+    
+    # Se alteracao_dado não usa esses campos, mude nullable para True:
+    nome_bruto_id: Mapped[int | None] = mapped_column(ForeignKey("nomes_brutos.id"), nullable=True)
+    cliente_sugerido_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True
     )
-    score_similaridade: Mapped[float] = mapped_column(Float)  # 0-100, via RapidFuzz
+    score_similaridade: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
     status: Mapped[ConsolidationStatus] = mapped_column(
         Enum(ConsolidationStatus, name="status_consolidacao"),
         nullable=False,
@@ -117,6 +122,17 @@ class PendingConsolidation(Base):
     )
     decidido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Motivo da pendência
+    motivo_pendencia: Mapped[MotivoPendenciaEnum | None] = mapped_column(
+        Enum(MotivoPendenciaEnum, name="motivo_pendencia_enum"), 
+        nullable=True
+    )
+
+    # Colunas que faltavam para atender aos testes:
+    ceg: Mapped[str | None] = mapped_column(String, nullable=True)
+    diff_pendente: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # ou JSON
+
+    # Relacionamento 1-N
     cegs_relacionados: Mapped[list["ConsolidationCeg"]] = relationship(
         back_populates="consolidacao", cascade="all, delete-orphan"
     )
