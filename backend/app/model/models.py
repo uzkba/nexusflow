@@ -158,9 +158,7 @@ class GenerationProject(Base):
         UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True, index=True
     )
     uf: Mapped[str | None] = mapped_column(String(2), index=True)
-
     municipios: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
-
     origem: Mapped[str | None] = mapped_column(String, index=True)
     fase: Mapped[str | None] = mapped_column(String, index=True)
     potencia_outorgada_kw: Mapped[float | None] = mapped_column(Float)
@@ -172,11 +170,13 @@ class GenerationProject(Base):
     status_revisao: Mapped[ReviewStatus] = mapped_column(
         Enum(ReviewStatus, name="status_revisao"), nullable=False, default=ReviewStatus.pendente
     )
+    diff_pendente: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
 class EtlRun(Base):
     __tablename__ = "etl_runs"
 
