@@ -18,7 +18,11 @@ from backend.app.model.models import Base, User
 from backend.main import app
 from backend.app.db.session import get_db
 from backend.app.core.security import hash_password
+import asyncio
+import sys
 
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 @pytest.fixture(scope="session")
 def postgres_container():
