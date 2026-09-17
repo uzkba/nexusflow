@@ -1,13 +1,14 @@
 """
 Fixtures compartilhadas para os testes do model e da API.
-Async de ponta a ponta, com asyncpg — o mesmo driver usado em produção
-(ver requirements.txt). Postgres real via testcontainers, não SQLite:
-o model usa JSONB, UUID nativo e Enum nativo do Postgres, e SQLite não
-implementa nenhum desses de verdade.
-Requer Docker disponível na máquina que roda `pytest` (local ou CI).
-Instalar: pip install -r requirements.txt (asyncpg já está lá) +
-pip install pytest pytest-asyncio testcontainers[postgres] "psycopg[binary]" httpx
+...
 """
+
+import asyncio
+import sys
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -19,6 +20,12 @@ from backend.main import app
 from backend.app.db.session import get_db
 from backend.app.core.security import hash_password
 
+# asyncpg não é totalmente compatível com o ProactorEventLoop, o loop
+# padrão no Windows — a conexão pode ser fechada "no meio da operação"
+# de forma intermitente. WindowsSelectorEventLoopPolicy resolve.
+# Precisa ser definido ANTES de qualquer loop/fixture assíncrona rodar.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 @pytest.fixture(scope="session")
 def postgres_container():
@@ -49,7 +56,11 @@ async def db_session(engine):
     """
     connection = await engine.connect()
     transaction = await connection.begin()
-    session = AsyncSession(bind=connection, expire_on_commit=False)
+    session = AsyncSession(
+        bind=connection,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
     yield session
     await session.close()
     # se o teste provocou um erro de propósito (IntegrityError, enum
