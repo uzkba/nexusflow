@@ -19,6 +19,8 @@ from backend.app.model.models import Base, User
 from backend.main import app
 from backend.app.db.session import get_db
 from backend.app.core.security import hash_password
+import asyncio
+import sys
 
 # asyncpg não é totalmente compatível com o ProactorEventLoop, o loop
 # padrão no Windows — a conexão pode ser fechada "no meio da operação"
