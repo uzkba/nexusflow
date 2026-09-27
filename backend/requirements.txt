@@ -12,7 +12,7 @@ pytest-asyncio
 testcontainers[postgres]
 psycopg[binary]
 pandas
-httpx
+httpx2
 python-dotenv
 pytest-cov
 rapidfuzz
