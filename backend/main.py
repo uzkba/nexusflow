@@ -1,11 +1,14 @@
 from fastapi import FastAPI
 
-from backend.app.api.routes import auth_route, consolidacoes_route
+from backend.app.api.routes import auth_route, consolidacoes_route, projetos_route, dashboard_route, geolocalizacao_route
 
 app = FastAPI(title="Painel Executivo — Outorgas de Geração")
 
 app.include_router(auth_route.router)
 app.include_router(consolidacoes_route.router)
+app.include_router(geolocalizacao_route.router)
+app.include_router(projetos_route.router)
+app.include_router(dashboard_route.router)  # 🔧 AJUSTE ESTA LINHA: caminho real do seu dashboard_route.py
 
 # Próximos routers (kpis, projetos, graficos, geolocalizacao) já nascem
 # protegidos via dependencies=[Depends(get_current_user)] no próprio
