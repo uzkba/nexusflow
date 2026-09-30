@@ -30,8 +30,8 @@ async def login(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=auth_settings.COOKIE_SECURE,
+        samesite=auth_settings.COOKIE_SAMESITE,
         path="/",
         max_age=auth_settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
@@ -39,8 +39,8 @@ async def login(
         key="refresh_token",
         value=refresh_token_puro,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=auth_settings.COOKIE_SECURE,
+        samesite=auth_settings.COOKIE_SAMESITE,
         path="/api/auth/refresh",
         max_age=auth_settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     )
