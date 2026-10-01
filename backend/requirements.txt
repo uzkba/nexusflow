@@ -16,3 +16,5 @@ httpx2
 python-dotenv
 pytest-cov
 rapidfuzz
+greenlet
+sqlalchemy[asyncio]
