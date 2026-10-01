@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -18,7 +20,6 @@ export function Login() {
     e.preventDefault();
     setErro(null);
 
-    // Validação básica no cliente
     if (!email || !senha) {
       setErro("Por favor, preencha e-mail e senha.");
       return;
@@ -27,23 +28,18 @@ export function Login() {
     try {
       setCarregando(true);
       
-      // O corpo da requisição reflete o LoginRequest do seu FastAPI
-      await httpClient.post("/api/auth/login", { email, senha });
-
-      // Como os tokens vão via Cookie HttpOnly, não precisamos salvar nada no localStorage.
-      // O backend já anexou os cookies na resposta e o navegador vai guardá-los.
-      navigate("/dashboard"); // Altere para a rota correta do seu app
+      const { data } = await httpClient.post("/api/auth/login", { email, senha });
+      login(data);
+      navigate("/dashboard"); 
       
     } catch (error: any) {
       if (error.response) {
-        // Erro retornado pelo servidor (ex: 401 Credenciais inválidas)
         if (error.response.status === 401) {
           setErro("E-mail ou senha incorretos.");
         } else {
           setErro(error.response.data?.detail || "Erro ao tentar fazer login.");
         }
       } else if (error.request) {
-        // Servidor fora do ar ou timeout
         setErro("Não foi possível conectar ao servidor. Tente novamente mais tarde.");
       } else {
         setErro("Ocorreu um erro inesperado.");
@@ -106,3 +102,5 @@ export function Login() {
     </div>
   );
 }
+
+export default Login;

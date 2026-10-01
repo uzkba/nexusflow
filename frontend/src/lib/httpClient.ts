@@ -18,7 +18,7 @@ let queue: Array<(token: string) => void> = [];
 
 async function refreshAccessToken(): Promise<string> {
   const refreshToken = localStorage.getItem("refresh_token");
-  const { data } = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/auth/refresh`, {
+  const { data } = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`, {
     refresh_token: refreshToken,
   });
   localStorage.setItem("access_token", data.access_token);
@@ -31,9 +31,15 @@ httpClient.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status !== 401 || original._retry) {
+    // 🔍 CORREÇÃO AQUI: Ignora o refresh se o 401 vier do /login ou se já tentou
+    if (
+      error.response?.status !== 401 || 
+      original._retry || 
+      original.url?.includes('/login')
+    ) {
       return Promise.reject(error);
     }
+    
     original._retry = true;
 
     if (isRefreshing) {
