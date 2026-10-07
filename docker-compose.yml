@@ -55,6 +55,7 @@ services:
       - "5173:5173"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_BYPASS_AUTH=${VITE_BYPASS_AUTH:-false}
     volumes:
       - ./frontend:/app
       - /app/node_modules

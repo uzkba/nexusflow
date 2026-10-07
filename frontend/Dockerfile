@@ -1,11 +1,12 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copia os arquivos de configuração
-COPY package.json ./
+# Instala as dependências DENTRO do container (binários do Linux)
+COPY package*.json ./
+RUN npm install
 
-# Como você já rodou o npm install no Windows, copiamos a pasta inteira já pronta
+# Copia o restante do código
 COPY . .
 
 EXPOSE 5173
