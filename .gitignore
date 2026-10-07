@@ -28,4 +28,6 @@ dist/
 .vscode/
 .idea/
 .DS_Store
-Thumbs.db*.tsbuildinfo
+Thumbs.db
+
+*.tsbuildinfo
