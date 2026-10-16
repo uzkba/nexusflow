@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
+// AJUSTE: Importe do seu path correto
+import { httpClient } from "@/lib/httpClient"; 
 
 interface Usuario {
   id: string;
@@ -8,26 +10,20 @@ interface Usuario {
 
 interface AuthContextData {
   usuario: Usuario | null;
-  login: (respostaLogin: any) => void;
-  logout: () => void;
+  login: (respostaLogin: { user: Usuario }) => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(() => {
-    // Tenta recuperar o usuário salvo ao iniciar a aplicação
     const usuarioSalvo = localStorage.getItem("usuario");
     return usuarioSalvo ? JSON.parse(usuarioSalvo) : null;
   });
 
-  const login = (respostaLogin: any) => {
-    // Extrai o token e o usuário da resposta da API
-    const { access_token, user } = respostaLogin;
-    
-    if (access_token) {
-      localStorage.setItem("token", access_token);
-    }
+  const login = (respostaLogin: { user: Usuario }) => {
+    const { user } = respostaLogin;
     
     if (user) {
       localStorage.setItem("usuario", JSON.stringify(user));
@@ -35,10 +31,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
-    setUsuario(null);
+  const logout = async () => {
+    try {
+      // Bate na API para destruir os cookies e o refresh no banco
+      await httpClient.post("/api/auth/logout");
+    } catch (error) {
+      console.error("Erro ao realizar logout:", error);
+    } finally {
+      // Limpa dados locais e força recarregamento pra limpar memória
+      localStorage.removeItem("usuario");
+      setUsuario(null);
+      window.location.href = "/login";
+    }
   };
 
   return (
