@@ -16,10 +16,9 @@ export function AppHeader({ updatedAt }: { updatedAt?: Date }) {
   const { search } = useLocation(); // mantém os filtros ao trocar de aba
 
   return (
-    <header className="sticky top-0 z-20 border-b bg-white">
+    <header className="sticky top-0 z-25 border-b bg-white shadow-sm">
       <div className="flex items-start justify-between gap-4 px-4 pt-5 md:px-8">
         <div className="flex items-start gap-3">
-          <SidebarTrigger className="-ml-2 mt-1" aria-label="Mostrar/ocultar filtros" />
           <div>
             <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
               Painel Executivo
