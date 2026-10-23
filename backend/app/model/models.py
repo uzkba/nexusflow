@@ -157,6 +157,9 @@ class GenerationProject(Base):
     cliente_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=True, index=True
     )
+    nome_bruto_principal_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("nomes_brutos.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     uf: Mapped[str | None] = mapped_column(String(2), index=True)
     municipios: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     origem: Mapped[str | None] = mapped_column(String, index=True)
