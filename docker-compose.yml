@@ -32,6 +32,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app  
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # worker:
   #   build:

@@ -10,15 +10,24 @@ Usa as fixtures `client` e `db_session` do conftest.py (Postgres real via
 testcontainers, asyncpg, transação com rollback por teste).
 """
 import uuid
-
 import pytest
 
 from backend.app.enum import ReviewStatus
 from backend.app.model.models import Client, GenerationProject
 
-# Segundo status (qualquer um diferente de "pendente") usado para simular
-# um projeto já revisado, sem depender do nome exato do membro do enum.
+# Importações para simular o bypass de autenticação
+from backend.main import app
+from backend.app.core.auth_dependencies import get_current_user
+
 _OUTRO_STATUS = next(s for s in ReviewStatus if s != ReviewStatus.pendente)
+
+
+# Fixture automática para burlar a autenticação de TODAS as rotas neste arquivo
+@pytest.fixture(autouse=True)
+def bypass_autenticacao(usuario_ativo):
+    app.dependency_overrides[get_current_user] = lambda: usuario_ativo
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def _novo_ceg() -> str:
@@ -26,56 +35,38 @@ def _novo_ceg() -> str:
 
 
 async def _seed(db_session):
-    # cliente_id é FK para `clientes` — precisa existir de verdade antes de
-    # ser referenciado, ou o Postgres barra com ForeignKeyViolationError.
     cliente_a_obj = Client(nome_oficial="Cliente Teste A")
     cliente_b_obj = Client(nome_oficial="Cliente Teste B")
     db_session.add_all([cliente_a_obj, cliente_b_obj])
-    await db_session.flush()  # popula os ids gerados pelo banco, sem commitar ainda
+    await db_session.flush()
 
     cliente_a = cliente_a_obj.id
     cliente_b = cliente_b_obj.id
 
     projetos = [
-        # Elegível, revisão pendente -> DEVE aparecer
         GenerationProject(
-            ceg=_novo_ceg(),
-            cliente_id=cliente_a,
-            uf="CE",
-            potencia_outorgada_kw=10_000,  # 10 MW
-            inicio_vigencia_ano=2023,
+            ceg=_novo_ceg(), cliente_id=cliente_a, uf="CE",
+            potencia_outorgada_kw=10_000, inicio_vigencia_ano=2023,
             status_revisao=ReviewStatus.pendente,
         ),
-        # Elegível, revisado -> DEVE aparecer
         GenerationProject(
-            ceg=_novo_ceg(),
-            cliente_id=cliente_a,
-            uf="CE",
-            potencia_outorgada_kw=20_000,  # 20 MW
-            inicio_vigencia_ano=2024,
+            ceg=_novo_ceg(), cliente_id=cliente_a, uf="CE",
+            potencia_outorgada_kw=20_000, inicio_vigencia_ano=2024,
             status_revisao=_OUTRO_STATUS,
         ),
-        # Elegível, outra UF -> DEVE aparecer
         GenerationProject(
-            ceg=_novo_ceg(),
-            cliente_id=cliente_b,
-            uf="SP",
-            potencia_outorgada_kw=30_000,  # 30 MW
-            inicio_vigencia_ano=2024,
+            ceg=_novo_ceg(), cliente_id=cliente_b, uf="SP",
+            potencia_outorgada_kw=30_000, inicio_vigencia_ano=2024,
             status_revisao=_OUTRO_STATUS,
         ),
-        # SEM cliente_id -> NÃO DEVE aparecer, mesmo revisado
         GenerationProject(
-            ceg=_novo_ceg(),
-            cliente_id=None,
-            uf="SP",
-            potencia_outorgada_kw=999_000,  # 999 MW — se vazar, o teste pega
-            inicio_vigencia_ano=2024,
+            ceg=_novo_ceg(), cliente_id=None, uf="SP",
+            potencia_outorgada_kw=999_000, inicio_vigencia_ano=2024,
             status_revisao=_OUTRO_STATUS,
         ),
     ]
     db_session.add_all(projetos)
-    await db_session.commit()  # segue o mesmo padrão das fixtures de usuário do conftest
+    await db_session.commit()
 
 
 class TestKPIs:
@@ -91,7 +82,6 @@ class TestKPIs:
         await _seed(db_session)
         resp = await client.get("/api/kpis")
         body = resp.json()
-        # 10+20+30=60 MW; NUNCA deve somar os 999 MW sem cliente
         assert float(body["potencia_total_mw"]) == 60.0
 
 
@@ -102,7 +92,6 @@ class TestPotenciaPorUF:
         assert resp.status_code == 200
         dados = {item["uf"]: item for item in resp.json()["dados"]}
 
-        # CE soma o projeto pendente (10) + o revisado (20) = 30
         assert float(dados["CE"]["potencia_total"]) == 30.0
         assert dados["CE"]["total_projetos"] == 2
 
@@ -122,14 +111,14 @@ class TestEvolucaoAnual:
 
         anos = [item["ano"] for item in dados]
         assert anos == sorted(anos)
-        assert 2023 in anos  # ano do projeto pendente não foi descartado
+        assert 2023 in anos
 
         por_ano = {item["ano"]: item for item in dados}
-        assert float(por_ano[2023]["potencia_total"]) == 10.0  # o pendente
+        assert float(por_ano[2023]["potencia_total"]) == 10.0
 
     async def test_potencia_acumulada_nao_soma_projeto_sem_cliente(self, client, db_session):
         await _seed(db_session)
         resp = await client.get("/api/graficos/evolucao-anual")
         dados = resp.json()["dados"]
         acumulado_final = dados[-1]["potencia_acumulada"]
-        assert float(acumulado_final) == 60.0  # nunca 60+999
+        assert float(acumulado_final) == 60.0

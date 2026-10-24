@@ -13,14 +13,14 @@ class UsuarioOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class LoginResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    # Tokens removidos: eles agora vão via Set-Cookie no header da resposta
     user: UsuarioOut
 
-class RefreshRequest(BaseModel):
-    refresh_token: str
+
+# RefreshRequest foi deletado. O backend vai ler o token direto do objeto Request (cookies)
 
 class RefreshResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    # Tokens removidos: a renovação injeta novos cookies diretamente
+    detail: str

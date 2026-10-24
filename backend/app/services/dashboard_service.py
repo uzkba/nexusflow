@@ -14,6 +14,7 @@ from sqlalchemy.sql import Select
 
 from backend.app.enum import ReviewStatus
 from backend.app.model.models import GenerationProject
+from backend.app.schemas.filtros_schema import FiltrosQuery
 
 # potencia_outorgada_kw vem em kW no banco; os endpoints expõem em MW.
 KW_PARA_MW = 1000
@@ -44,19 +45,48 @@ def _filtro_elegiveis():
     # Propositalmente SEM `GenerationProject.status_revisao == ...`
 
 
-async def get_kpis(db: AsyncSession) -> dict:
+def _condicoes(filtros: FiltrosQuery | None = None) -> list:
+    """
+    Regra de elegibilidade (_filtro_elegiveis) + filtros da sidebar.
+
+    Os filtros só ACRESCENTAM condições. Nunca removem a regra base e
+    nunca introduzem filtro por status_revisao (ver _filtro_elegiveis).
+    """
+    condicoes = [_filtro_elegiveis()]
+    if filtros is None:
+        return condicoes
+
+    if filtros.origem:
+        condicoes.append(GenerationProject.origem == filtros.origem)
+    if filtros.cliente:
+        condicoes.append(GenerationProject.cliente_id == filtros.cliente)
+    if filtros.nome:
+        condicoes.append(GenerationProject.nome_projeto == filtros.nome)
+    if filtros.uf:
+        condicoes.append(GenerationProject.uf == filtros.uf)
+    if filtros.municipio:
+        # municipios é JSONB list[str]: contenção (@>), não igualdade
+        condicoes.append(GenerationProject.municipios.contains([filtros.municipio]))
+    if filtros.ano:
+        condicoes.append(GenerationProject.inicio_vigencia_ano == filtros.ano)
+    return condicoes
+
+
+async def get_kpis(db: AsyncSession, filtros: FiltrosQuery | None = None) -> dict:
+    condicoes = _condicoes(filtros)
+
     total_projetos = await db.scalar(
-        select(func.count()).select_from(GenerationProject).where(_filtro_elegiveis())
+        select(func.count()).select_from(GenerationProject).where(*condicoes)
     )
 
     potencia_total_kw = await db.scalar(
         select(func.coalesce(func.sum(GenerationProject.potencia_outorgada_kw), 0)).where(
-            _filtro_elegiveis()
+            *condicoes
         )
     )
 
     total_clientes = await db.scalar(
-        select(func.count(func.distinct(GenerationProject.cliente_id))).where(_filtro_elegiveis())
+        select(func.count(func.distinct(GenerationProject.cliente_id))).where(*condicoes)
     )
 
     # Informativo apenas: quantos dos projetos elegíveis estão com revisão
@@ -64,7 +94,7 @@ async def get_kpis(db: AsyncSession) -> dict:
     projetos_pendentes_revisao = await db.scalar(
         select(func.count())
         .select_from(GenerationProject)
-        .where(_filtro_elegiveis(), GenerationProject.status_revisao == ReviewStatus.pendente)
+        .where(*condicoes, GenerationProject.status_revisao == ReviewStatus.pendente)
     )
 
     return {
@@ -75,7 +105,9 @@ async def get_kpis(db: AsyncSession) -> dict:
     }
 
 
-async def get_potencia_por_uf(db: AsyncSession) -> List[dict]:
+async def get_potencia_por_uf(
+    db: AsyncSession, filtros: FiltrosQuery | None = None
+) -> List[dict]:
     stmt: Select = (
         select(
             GenerationProject.uf,
@@ -84,7 +116,7 @@ async def get_potencia_por_uf(db: AsyncSession) -> List[dict]:
             ),
             func.count(GenerationProject.ceg).label("total_projetos"),
         )
-        .where(_filtro_elegiveis())
+        .where(*_condicoes(filtros))
         .group_by(GenerationProject.uf)
         .order_by(func.sum(GenerationProject.potencia_outorgada_kw).desc())
     )
@@ -101,7 +133,9 @@ async def get_potencia_por_uf(db: AsyncSession) -> List[dict]:
     ]
 
 
-async def get_evolucao_anual(db: AsyncSession) -> List[dict]:
+async def get_evolucao_anual(
+    db: AsyncSession, filtros: FiltrosQuery | None = None
+) -> List[dict]:
     stmt: Select = (
         select(
             GenerationProject.inicio_vigencia_ano,
@@ -110,7 +144,7 @@ async def get_evolucao_anual(db: AsyncSession) -> List[dict]:
             ),
             func.count(GenerationProject.ceg).label("total_projetos"),
         )
-        .where(_filtro_elegiveis(), GenerationProject.inicio_vigencia_ano.isnot(None))
+        .where(*_condicoes(filtros), GenerationProject.inicio_vigencia_ano.isnot(None))
         .group_by(GenerationProject.inicio_vigencia_ano)
         .order_by(GenerationProject.inicio_vigencia_ano.asc())  # ordenação cronológica
     )

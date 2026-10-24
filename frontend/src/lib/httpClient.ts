@@ -1,4 +1,3 @@
-// src/lib/httpClient.ts
 import axios from "axios";
 import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 
@@ -7,23 +6,16 @@ export const httpClient = axios.create({
   withCredentials: true,
 });
 
-httpClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
 let isRefreshing = false;
-let queue: Array<(token: string) => void> = [];
+let queue: Array<() => void> = [];
 
-async function refreshAccessToken(): Promise<string> {
-  const refreshToken = localStorage.getItem("refresh_token");
-  const { data } = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`, {
-    refresh_token: refreshToken,
-  });
-  localStorage.setItem("access_token", data.access_token);
-  localStorage.setItem("refresh_token", data.refresh_token); // rotação: token novo substitui o antigo
-  return data.access_token;
+async function refreshAccessToken(): Promise<void> {
+  // Dispara POST vazio. O cookie httpOnly viaja sozinho pelo withCredentials
+  await axios.post(
+    `${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`,
+    {},
+    { withCredentials: true }
+  );
 }
 
 httpClient.interceptors.response.use(
@@ -31,11 +23,12 @@ httpClient.interceptors.response.use(
   async (error: AxiosError) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // 🔍 CORREÇÃO AQUI: Ignora o refresh se o 401 vier do /login ou se já tentou
+    // Evita loop no login/refresh se der erro neles mesmos
     if (
       error.response?.status !== 401 || 
       original._retry || 
-      original.url?.includes('/login')
+      original.url?.includes('/login') ||
+      original.url?.includes('/refresh') 
     ) {
       return Promise.reject(error);
     }
@@ -43,26 +36,23 @@ httpClient.interceptors.response.use(
     original._retry = true;
 
     if (isRefreshing) {
-      // outra requisição já disparou o refresh — entra na fila em vez de disparar de novo
       return new Promise((resolve) => {
-        queue.push((token) => {
-          original.headers.Authorization = `Bearer ${token}`;
-          resolve(httpClient(original));
-        });
+        queue.push(() => resolve(httpClient(original)));
       });
     }
 
     isRefreshing = true;
     try {
-      const newToken = await refreshAccessToken();
-      queue.forEach((cb) => cb(newToken));
+      await refreshAccessToken();
+      
+      queue.forEach((cb) => cb());
       queue = [];
-      original.headers.Authorization = `Bearer ${newToken}`;
+      
+      // Repete a requisição bloqueada
       return httpClient(original);
     } catch (refreshError) {
       queue = [];
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("usuario");
       window.location.href = "/login";
       return Promise.reject(refreshError);
     } finally {

@@ -5,53 +5,52 @@ GET /api/kpis
 GET /api/graficos/potencia-uf
 GET /api/graficos/evolucao-anual
 """
-from fastapi import APIRouter, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# 🔧 AJUSTE ESTA LINHA: caminho real do seu session.py (o que define get_db)
+# AJUSTE: Verifique os caminhos exatos das importações no seu projeto
 from backend.app.db.session import get_db
+from backend.app.core.auth_dependencies import get_current_user
 
 from backend.app.schemas.dashboard_schema import (
     EvolucaoAnualResponse,
     KPIsResponse,
     PotenciaPorUFResponse,
 )
+from backend.app.schemas.filtros_schema import FiltrosQuery
 from backend.app.services import dashboard_service
 
-router = APIRouter(tags=["Dashboards"])
-
+# Aplicando a proteção na raiz do router: TODAS as rotas exigirão o token/cookie
+router = APIRouter(
+    tags=["Dashboards"],
+    dependencies=[Depends(get_current_user)]
+)
 
 @router.get(
     "/api/kpis",
     response_model=KPIsResponse,
     summary="Totalizadores e indicadores gerais do portfólio",
-    description=(
-        "Retorna os totalizadores do Painel Executivo.\n\n"
-        "**Regra de negócio:** considera apenas projetos com `cliente_id` "
-        "preenchido. Projetos com pendência de revisão técnica "
-        "(`status_revisao = pendente`) **são incluídos** nos totais — a "
-        "pendência é informada separadamente no campo "
-        "`projetos_pendentes_revisao`, mas não remove o projeto dos demais "
-        "totais."
-    ),
+    description="Retorna os totalizadores. Regra de negócio: cliente_id não nulo. Ignora status_revisao."
 )
-async def obter_kpis(db: AsyncSession = Depends(get_db)) -> KPIsResponse:
-    return await dashboard_service.get_kpis(db)
+async def obter_kpis(
+    filtros: Annotated[FiltrosQuery, Query()],
+    db: AsyncSession = Depends(get_db),
+) -> KPIsResponse:
+    return await dashboard_service.get_kpis(db, filtros)
 
 
 @router.get(
     "/api/graficos/potencia-uf",
     response_model=PotenciaPorUFResponse,
     summary="Potência outorgada agrupada por UF",
-    description=(
-        "Retorna a soma da potência outorgada (MW) agrupada por Estado (UF), "
-        "ordenada da maior para a menor potência.\n\n"
-        "Aplica a mesma regra de elegibilidade de `/api/kpis` "
-        "(`cliente_id IS NOT NULL`, sem filtro de `status_revisao`)."
-    ),
 )
-async def obter_potencia_por_uf(db: AsyncSession = Depends(get_db)) -> PotenciaPorUFResponse:
-    dados = await dashboard_service.get_potencia_por_uf(db)
+async def obter_potencia_por_uf(
+    filtros: Annotated[FiltrosQuery, Query()],
+    db: AsyncSession = Depends(get_db),
+) -> PotenciaPorUFResponse:
+    dados = await dashboard_service.get_potencia_por_uf(db, filtros)
     return PotenciaPorUFResponse(dados=dados)
 
 
@@ -59,14 +58,10 @@ async def obter_potencia_por_uf(db: AsyncSession = Depends(get_db)) -> PotenciaP
     "/api/graficos/evolucao-anual",
     response_model=EvolucaoAnualResponse,
     summary="Evolução anual da potência outorgada",
-    description=(
-        "Retorna a soma da potência outorgada (MW) agrupada por ano de "
-        "início de vigência, ordenada cronologicamente, incluindo a "
-        "potência acumulada até cada ano.\n\n"
-        "Aplica a mesma regra de elegibilidade de `/api/kpis` "
-        "(`cliente_id IS NOT NULL`, sem filtro de `status_revisao`)."
-    ),
 )
-async def obter_evolucao_anual(db: AsyncSession = Depends(get_db)) -> EvolucaoAnualResponse:
-    dados = await dashboard_service.get_evolucao_anual(db)
+async def obter_evolucao_anual(
+    filtros: Annotated[FiltrosQuery, Query()],
+    db: AsyncSession = Depends(get_db),
+) -> EvolucaoAnualResponse:
+    dados = await dashboard_service.get_evolucao_anual(db, filtros)
     return EvolucaoAnualResponse(dados=dados)
