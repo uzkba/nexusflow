@@ -1,26 +1,15 @@
 """
 Upsert de GenerationProject usando `ceg` como chave de conflito.
 
-Decisões de negócio incorporadas aqui (ver histórico da conversa / backlog):
-- `cliente_id`, `criado_em` e `ceg` nunca são sobrescritos pelo ETL — pertencem
-  ao fluxo de consolidação de cliente (manual) ou são imutáveis por definição.
-- Se um CEG já existente vier com diferença em campos que impactam
-  gráficos/KPIs, `status_revisao` volta para 'pendente' e o diff é registrado
-  em `diff_pendente` (JSONB) para a tela de aprovação (Card 13/24) mostrar
-  o que mudou.
-- Comparação de campo numérico (`potencia_outorgada_kw`, tipo Float) usa
-  tolerância (math.isclose) para não gerar diff fantasma por erro de ponto
-  flutuante. Campos de texto usam igualdade direta.
-- Endpoints de gráficos/KPIs NÃO filtram por status_revisao (decisão
-  registrada: opção 2 — o pendente aqui é só sinalizador para revisão
-  posterior, sem efeito imediato no que aparece no dashboard).
-- A função NÃO comita a transação — só flush(). Quem chama decide quando
-  commitar (necessário para compatibilidade com fixtures de teste
-  baseadas em rollback por transação).
-
-Pendente de validação: o valor de abs_tol abaixo (1e-6) foi escolhido para
-absorver só ruído de representação float, não diferença real de medição —
-validar contra dados reais da ANEEL antes de confiar cegamente nisso.
+Decisões de negócio incorporadas aqui:
+- `criado_em` e `ceg` nunca são sobrescritos pelo ETL.
+- `cliente_id` é protegido: SÓ é sobrescrito se o `nome_bruto_principal_id`
+  mudar no CSV (passando a assumir o valor novo mapeado pelo orquestrador).
+- Se a linha já possuir um `status_revisao` no registro (ex: sentinela aprovado
+  injetado pelo orquestrador), ele é respeitado; caso contrário, vai pra 'pendente'.
+- A função NÃO comita a transação — só flush().
+- A execução do upsert é separada em dois lotes para que o PostgreSQL consiga
+  montar a cláusula SET correta (uma com cliente_id, outra sem).
 """
 
 import datetime
@@ -34,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.enum.projeto_geracao import ReviewStatus
 from backend.app.model.models import GenerationProject
 
-COLUNAS_PROTEGIDAS = {"ceg", "cliente_id", "criado_em"}
 
 CAMPOS_QUE_IMPACTAM_GRAFICOS = {
     "potencia_outorgada_kw",
@@ -42,26 +30,20 @@ CAMPOS_QUE_IMPACTAM_GRAFICOS = {
     "fase",
     "uf",
     "municipios",
-    "inicio_vigencia_ano",  # alimenta /api/graficos/evolucao-anual
-    "latitude",             # alimenta o mapa (Card 17/23)
-    "longitude",            # alimenta o mapa (Card 17/23)
+    "inicio_vigencia_ano",
+    "latitude",
+    "longitude",
+    "nome_bruto_principal_id",  # Adicionado
 }
-# inicio_vigencia_ano é integer — igualdade direta já é segura, não precisa
-# de tolerância. latitude/longitude são double precision — mesmo tratamento
-# de tolerância que potencia_outorgada_kw, por serem float.
+
 CAMPOS_NUMERICOS = {"potencia_outorgada_kw", "latitude", "longitude"}
 
 
 def _valores_diferem(campo: str, antigo, novo) -> bool:
-    """
-    Campos numéricos (float) usam tolerância pra não gerar diff fantasma
-    por erro de ponto flutuante (armazenamento/leitura no Postgres, cast
-    do Pandas, etc). Campos de texto usam igualdade direta.
-    """
+    """Campos numéricos (float) usam tolerância. Campos de texto usam igualdade direta."""
     if campo in CAMPOS_NUMERICOS:
         if antigo is None or novo is None:
             return antigo != novo
-        # abs_tol bem apertado — só absorve ruído de float, não diferença real
         return not math.isclose(antigo, novo, rel_tol=1e-9, abs_tol=1e-6)
     return antigo != novo
 
@@ -80,8 +62,8 @@ async def upsert_projetos_geracao(
 ) -> None:
     """
     Upsert em lote de GenerationProject usando `ceg` como chave de conflito.
-    `registros` é uma lista de dicts já normalizados pelo Transform
-    (mesmas chaves = mesmas colunas em todos os itens).
+    `registros` é uma lista de dicts já normalizados e enriquecidos com
+    `nome_bruto_principal_id` e `cliente_id`.
     """
     if not registros:
         return
@@ -92,12 +74,17 @@ async def upsert_projetos_geracao(
     )
     existentes_por_ceg = {p.ceg: p for p in result.scalars()}
 
+    lote_mudou_dono = []
+    lote_mesmo_dono = []
+
     for registro in registros:
         existente = existentes_por_ceg.get(registro["ceg"])
 
         if existente is None:
-            registro["status_revisao"] = ReviewStatus.pendente
+            # Novo projeto: status_revisao usa o do registro se existir, senao pendente
+            registro["status_revisao"] = registro.get("status_revisao", ReviewStatus.pendente)
             registro["diff_pendente"] = None
+            lote_mudou_dono.append(registro)  # Inserts entram no lote que grava cliente_id
             continue
 
         diff = {}
@@ -113,22 +100,43 @@ async def upsert_projetos_geracao(
                 }
 
         if diff:
-            registro["status_revisao"] = ReviewStatus.pendente
+            # Se já veio com status no registro (pode ser regra do orquestrador), respeita. Senao, pendente.
+            registro["status_revisao"] = registro.get("status_revisao", ReviewStatus.pendente)
             registro["diff_pendente"] = diff
         else:
             registro["status_revisao"] = existente.status_revisao
             registro["diff_pendente"] = existente.diff_pendente
 
+        # Direcionamento dos lotes: se o dono mudou, permitimos sobrescrever o cliente_id
+        if "nome_bruto_principal_id" in diff:
+            lote_mudou_dono.append(registro)
+        else:
+            lote_mesmo_dono.append(registro)
+
     colunas_dados = set(registros[0].keys())
-    colunas_atualizaveis = colunas_dados - COLUNAS_PROTEGIDAS
 
-    stmt = pg_insert(GenerationProject).values(registros)
-    set_clause = {col: getattr(stmt.excluded, col) for col in colunas_atualizaveis}
-    set_clause["atualizado_em"] = func.now()
+    async def _executar_lote(lote: list[dict], permite_atualizar_cliente: bool):
+        if not lote:
+            return
+            
+        stmt = pg_insert(GenerationProject).values(lote)
+        
+        colunas_protegidas = {"ceg", "criado_em"}
+        if not permite_atualizar_cliente:
+            colunas_protegidas.add("cliente_id")
+            
+        colunas_atualizaveis = colunas_dados - colunas_protegidas
+        
+        # A chave ausente no registro original sequer entra em `colunas_dados`.
+        # Só atualizamos as que vieram no payload e não estão protegidas.
+        set_clause = {col: getattr(stmt.excluded, col) for col in colunas_atualizaveis if col in colunas_dados}
+        set_clause["atualizado_em"] = func.now()
 
-    stmt = stmt.on_conflict_do_update(index_elements=["ceg"], set_=set_clause)
-    await session.execute(stmt)
+        stmt = stmt.on_conflict_do_update(index_elements=["ceg"], set_=set_clause)
+        await session.execute(stmt)
+
+    # Executa os dois fluxos na mesma transação
+    await _executar_lote(lote_mudou_dono, permite_atualizar_cliente=True)
+    await _executar_lote(lote_mesmo_dono, permite_atualizar_cliente=False)
+    
     await session.flush()
-    # Commit é responsabilidade de quem chama (endpoint, orquestrador do
-    # pipeline, ou o teste) — não da função de service. Comitar aqui
-    # dentro quebra fixtures de teste baseadas em rollback por transação.

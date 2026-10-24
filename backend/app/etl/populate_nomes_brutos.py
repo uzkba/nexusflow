@@ -43,9 +43,7 @@ entre execucoes antes de deixar isso rodando sem supervisao.
 
 import argparse
 import asyncio
-import html
 import logging
-import re
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -56,6 +54,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Ajustar conforme localizacao real no projeto nexusflow
 from backend.app.model.models import RawName
 from backend.app.db.session import AsyncSessionLocal
+
+# O parsing mora em parsing_proprietarios.py (sem dependencia de banco), pra
+# ser compartilhado com o ETL de projetos_geracao. Os nomes abaixo continuam
+# importaveis daqui (ex.: scripts de diagnostico que fazem
+# `from backend.app.etl.populate_nomes_brutos import ENTRY_RE, limpar_texto`).
+from backend.app.etl.parsing_proprietarios import (  # noqa: F401
+    ENTRY_RE,
+    NAO_INFORMADO_RE,
+    extrair_proprietarios,
+    formatar_nome_bruto,
+    limpar_texto,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("populate_nomes_brutos")
@@ -71,45 +81,6 @@ COLUNA_FASE = "DscFaseUsina"
 # nos dois (idealmente extrair pra config compartilhada depois).
 ORIGENS_PERMITIDAS = {"UFV", "EOL"}  # Solar fotovoltaica, Eolica
 FASE_PERMITIDA = "Construção não iniciada"
-
-# Ancorado no padrao de CNPJ (fixo: XX.XXX.XXX/XXXX-XX), nao em split por
-# virgula ou hifen -- nomes de empresa tem hifen interno (ex: "CRERAL-
-# COOPERATIVA..."), entao dividir por "-" ou "," quebraria nomes reais.
-ENTRY_RE = re.compile(
-    r"(?P<pct>\d+)%\s*para\s*(?P<nome>.*?)\s*-\s*"
-    r"(?P<cnpj>\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2})?\s*\((?P<regime>[A-Za-z]+)\)"
-)
-
-# Pessoa fisica nao tem CNPJ no dataset da ANEEL -- o grupo cnpj acima e'
-# opcional por causa disso (nao e' erro de formato, e' a estrutura real).
-
-NAO_INFORMADO_RE = re.compile(r"^n[aã]o informado$", re.IGNORECASE)
-
-
-def limpar_texto(texto: str) -> str:
-    """Corrige entidade HTML truncada e decodifica entidades normais."""
-    texto = texto.replace("&amp-", "&").replace("&amp;", "&")
-    texto = html.unescape(texto)
-    return " ".join(texto.split())  # normaliza espacos
-
-
-def extrair_proprietarios(valor_bruto: str) -> list[tuple[str, str]]:
-    """
-    Retorna lista de (nome_limpo, cnpj) para uma linha do CSV.
-    Uma linha com 2 proprietarios (ex: split 50/50) retorna 2 tuplas.
-    """
-    texto = limpar_texto(str(valor_bruto))
-
-    if NAO_INFORMADO_RE.match(texto):
-        return [("Não Informado", None)]
-
-    resultados = []
-    for match in ENTRY_RE.finditer(texto):
-        nome = " ".join(match.group("nome").split()).strip(" -")
-        nome = nome.strip(" '\"")  # remove aspas soltas nas pontas (ex: '' NOME '')
-        cnpj = match.group("cnpj")  # None para pessoa fisica (sem CNPJ no dataset)
-        resultados.append((nome, cnpj))
-    return resultados
 
 
 def extrair_valores_unicos(csv_path: str) -> list[str]:
@@ -177,7 +148,7 @@ def extrair_valores_unicos(csv_path: str) -> list[str]:
         )
 
     nomes_brutos = sorted(
-        f"{nome} - {cnpj}" if cnpj else nome
+        formatar_nome_bruto(nome, cnpj)
         for nome, cnpj in pares_unicos
     )
 
