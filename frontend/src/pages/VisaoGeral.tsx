@@ -3,17 +3,15 @@ import { KpiCards } from "@/components/dashboard/KpiCards";
 import { useOrigemDashboard, useRankingClientes } from "@/hooks/use-dashboard";
 import { GraficoOrigem } from "@/components/dashboard/GraficoOrigem";
 import { GraficoRanking } from "@/components/dashboard/GraficoRanking";
+import { ProjetosTable } from "@/components/projetos/ProjetosTable"; // <-- Importe aqui
 
 export function VisaoGeralPage() {
   const { filtros } = useFiltros();
   
-  // 1. Limpa os filtros: remove undefined, null ou strings vazias
   const paramsAtivos = Object.fromEntries(
     Object.entries(filtros).filter(([_, valor]) => valor !== "" && valor != null)
   );
 
-  // 2. Buscamos os dados dos gráficos via TanStack Query (cache e retry automáticos)
-  // Nota: O KpiCards já faz a busca dele internamente, otimizando a renderização!
   const { data: graficoOrigem, isLoading: isLoadingOrigem } = useOrigemDashboard(paramsAtivos);
   const { data: graficoRanking, isLoading: isLoadingRanking } = useRankingClientes(paramsAtivos, 10);
 
@@ -24,13 +22,9 @@ export function VisaoGeralPage() {
       </div>
 
       <div className="space-y-6">
-        
-        {/* CARDS DE KPI (Componentizado para código mais limpo) */}
         <KpiCards filtros={paramsAtivos} />
 
-        {/* ÁREA DOS GRÁFICOS */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          
           <div className="col-span-4 rounded-xl border bg-card text-card-foreground shadow p-6 min-h-400px flex flex-col">
             <h3 className="font-semibold mb-4">Top 10 Clientes por Potência</h3>
             {isLoadingRanking ? (
@@ -56,8 +50,15 @@ export function VisaoGeralPage() {
               </div>
             )}
           </div>
-
         </div>
+
+        {/* NOVA SEÇÃO: BASE DE DADOS */}
+        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
+          <h3 className="font-semibold mb-4">Base de Dados</h3>
+          {/* Repassa os filtros globais para a tabela */}
+          <ProjetosTable filtrosGlobais={paramsAtivos} /> 
+        </div>
+
       </div>
     </div>
   );
