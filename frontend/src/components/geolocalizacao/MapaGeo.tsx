@@ -1,113 +1,89 @@
-import { useEffect, useState } from 'react';
+// frontend/src/components/geolocalizacao/MapaGeo.tsx
+import React, { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
-import { EChartsOption } from 'echarts';
+import { GeolocalizacaoItem } from '../../hooks/use-geolocalizacao';
+// Assume-se que o JSON já está importado e o mapa registrado
+import brasilUfJson from '../../assets/brasil-uf.json';
 
-import geoJsonData from '@/assets/brasil-uf.json';
+// Registo do mapa (se já não estiver a ser feito na inicialização da app)
+echarts.registerMap('brasil', brasilUfJson as any);
 
-// Dicionário para traduzir o código 'codarea' do IBGE para a sigla do Estado
-const mapaSiglasUF: Record<string, string> = {
-  '11': 'RO', '12': 'AC', '13': 'AM', '14': 'RR', '15': 'PA', '16': 'AP', '17': 'TO',
-  '21': 'MA', '22': 'PI', '23': 'CE', '24': 'RN', '25': 'PB', '26': 'PE', '27': 'AL', '28': 'SE', '29': 'BA',
-  '31': 'MG', '32': 'ES', '33': 'RJ', '35': 'SP',
-  '41': 'PR', '42': 'SC', '43': 'RS',
-  '50': 'MS', '51': 'MT', '52': 'GO', '53': 'DF'
-};
-
-export interface MapaGeoProps {
-  customOptions?: EChartsOption;
-  className?: string;
-  loadingText?: string;
+interface MapaGeoProps {
+  dados: GeolocalizacaoItem[];
 }
 
-export function MapaGeo({
-  customOptions,
-  className = '',
-  loadingText = 'Carregando mapa...'
-}: MapaGeoProps) {
-  const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+export const MapaGeo: React.FC<MapaGeoProps> = ({ dados }) => {
+  // Transformar os dados agregados em pontos (Scatters) baseados nos municípios
+  const scatterData = useMemo(() => {
+    return dados.map((item) => {
+      return {
+        name: `${item.municipio} (${item.uf})`,
+        // ECharts exige [longitude, latitude]. 
+        // Adiciona estes campos à tua query/schema no backend para os pontos não ficarem em [0,0]
+        value: [(item as any).longitude || 0, (item as any).latitude || 0],
+        municipio: item.municipio,
+        quantidade_projetos: item.quantidade_projetos,
+        potencia_total: item.potencia_total
+      };
+    });
+  }, [dados]);
 
-  useEffect(() => {
-    try {
-      echarts.registerMap('brasil', geoJsonData as any);
-      setIsMapLoaded(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido ao registrar mapa');
-    }
-  }, []);
-
-  const defaultOption: EChartsOption = {
+  const options = {
     tooltip: {
       trigger: 'item',
-      showDelay: 0,
-      transitionDuration: 0.2,
-      // Formata o tooltip para exibir bonito: "Estado: SP"
       formatter: (params: any) => {
-        return params.name ? `<span style="font-weight:bold;">Estado: ${params.name}</span>` : '';
+        // Tooltip para os pontos agregados por município
+        if (params.seriesType === 'effectScatter') {
+          return `
+            <div style="font-family: sans-serif; font-size: 13px;">
+              <strong>${params.data.municipio}</strong><br/>
+              Projetos: ${params.data.quantidade_projetos}<br/>
+              Potência: ${params.data.potencia_total} kW
+            </div>
+          `;
+        }
+        // Tooltip fallback para as regiões (UF) do mapa base
+        return params.name; 
+      }
+    },
+    geo: {
+      map: 'brasil',
+      roam: true, // Permite zoom e drag
+      aspectScale: 0.95,
+      itemStyle: {
+        areaColor: '#e2e8f0', // tailwind slate-200
+        borderColor: '#94a3b8', // tailwind slate-400
+      },
+      emphasis: {
+        itemStyle: {
+          areaColor: '#cbd5e1'
+        }
       }
     },
     series: [
       {
-        name: 'Mapa do Brasil',
-        type: 'map',
-        map: 'brasil',
-        // AS DUAS LINHAS MÁGICAS:
-        nameProperty: 'codarea', // Diz ao ECharts para usar o código do IBGE para separar as regiões
-        nameMap: mapaSiglasUF,   // Traduz o código numérico (ex: 35) para o nome (ex: SP)
-        roam: true,
-        zoom: 1.2,
-
-        aspectScale: 0.95, // Força o mapa a ser mais largo. Quanto mais perto de 1 (ou maior), mais esticado horizontalmente ele fica.
-
+        name: 'Projetos',
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        data: scatterData,
+        symbolSize: 8,
         itemStyle: {
-          areaColor: '#e2e8f0', 
-          borderColor: '#ffffff',
-          borderWidth: 1,
+          color: '#2563eb', // tailwind blue-600
+          shadowBlur: 10,
+          shadowColor: '#2563eb'
         },
-        emphasis: {
-          itemStyle: {
-            areaColor: '#3b82f6', 
-          },
-          label: {
-            show: true,
-            color: '#ffffff',
-            fontWeight: 'bold'
-          }
-        },
+        large: true 
       }
     ]
   };
 
-  const finalOption: EChartsOption = customOptions 
-    ? { ...defaultOption, ...customOptions }
-    : defaultOption;
-
-  if (error) {
-    return (
-      <div className={`w-full h-full min-h-400px flex items-center justify-center bg-red-50 text-red-500 rounded-md border border-red-200 ${className}`}>
-        <p className="font-medium text-sm">{error}</p>
-      </div>
-    );
-  }
-
-  if (!isMapLoaded) {
-    return (
-      <div className={`w-full h-full min-h-400px flex items-center justify-center bg-slate-50 text-slate-500 animate-pulse rounded-md ${className}`}>
-        <p className="font-medium text-sm">{loadingText}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className={`w-full h-full min-h-400px relative ${className}`}>
-      <ReactECharts
-        option={finalOption}
-        style={{ height: '100%', width: '100%' }}
-        className="react_for_echarts"
-        notMerge={true}
-        lazyUpdate={true}
-      />
-    </div>
+    <ReactECharts
+      option={options}
+      style={{ height: '600px', width: '100%' }}
+      opts={{ renderer: 'canvas' }}
+      notMerge={true}
+    />
   );
-}
+};
