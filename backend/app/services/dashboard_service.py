@@ -12,8 +12,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
+from backend.app.core.constantes import SENTINELA_CLIENTE_ID
 from backend.app.enum import ReviewStatus
-from backend.app.model.models import GenerationProject
+from backend.app.model.models import Client, GenerationProject
 from backend.app.schemas.filtros_schema import FiltrosQuery
 
 # potencia_outorgada_kw vem em kW no banco; os endpoints expõem em MW.
@@ -33,24 +34,15 @@ def _filtro_elegiveis():
     2) NÃO filtramos por `status_revisao`. Um projeto com pendência de
        revisão de dado técnico É UM DADO VÁLIDO para fins de portfólio e
        DEVE continuar sendo contado normalmente nos KPIs e nos gráficos
-       até que a revisão seja concluída. Isso é intencional — a revisão
-       afeta a qualidade/confiança do dado, não a elegibilidade dele para
-       compor os totais. Se alguém precisar de uma visão "apenas
-       revisados", isso deve ser um filtro OPCIONAL e explícito em um novo
-       endpoint/parâmetro — nunca o comportamento padrão destes três
-       endpoints.
+       até que a revisão seja concluída.
     ------------------------------------------------------------------
     """
     return GenerationProject.cliente_id.isnot(None)
-    # Propositalmente SEM `GenerationProject.status_revisao == ...`
 
 
 def _condicoes(filtros: FiltrosQuery | None = None) -> list:
     """
     Regra de elegibilidade (_filtro_elegiveis) + filtros da sidebar.
-
-    Os filtros só ACRESCENTAM condições. Nunca removem a regra base e
-    nunca introduzem filtro por status_revisao (ver _filtro_elegiveis).
     """
     condicoes = [_filtro_elegiveis()]
     if filtros is None:
@@ -85,23 +77,33 @@ async def get_kpis(db: AsyncSession, filtros: FiltrosQuery | None = None) -> dic
         )
     )
 
+    # Exclui o sentinela da contagem real de clientes
     total_clientes = await db.scalar(
-        select(func.count(func.distinct(GenerationProject.cliente_id))).where(*condicoes)
+        select(func.count(func.distinct(GenerationProject.cliente_id))).where(
+            *condicoes,
+            GenerationProject.cliente_id != SENTINELA_CLIENTE_ID
+        )
     )
 
-    # Informativo apenas: quantos dos projetos elegíveis estão com revisão
-    # pendente. NÃO é usado para excluir nada — ver comentário em _filtro_elegiveis().
     projetos_pendentes_revisao = await db.scalar(
         select(func.count())
         .select_from(GenerationProject)
         .where(*condicoes, GenerationProject.status_revisao == ReviewStatus.pendente)
     )
 
+    # Conta separadamente os projetos que caíram no sentinela
+    projetos_sem_proprietario = await db.scalar(
+        select(func.count())
+        .select_from(GenerationProject)
+        .where(*condicoes, GenerationProject.cliente_id == SENTINELA_CLIENTE_ID)
+    )
+
     return {
         "total_projetos": total_projetos or 0,
-        "potencia_total_mw": Decimal(potencia_total_kw or 0) / KW_PARA_MW,
+        "potencia_total_mw": float(Decimal(potencia_total_kw or 0) / KW_PARA_MW),
         "total_clientes": total_clientes or 0,
         "projetos_pendentes_revisao": projetos_pendentes_revisao or 0,
+        "projetos_sem_proprietario": projetos_sem_proprietario or 0,
     }
 
 
@@ -126,7 +128,7 @@ async def get_potencia_por_uf(
     return [
         {
             "uf": uf,
-            "potencia_total": Decimal(potencia_total_kw or 0) / KW_PARA_MW,
+            "potencia_total": float(Decimal(potencia_total_kw or 0) / KW_PARA_MW),
             "total_projetos": total_projetos,
         }
         for uf, potencia_total_kw, total_projetos in resultado.all()
@@ -146,7 +148,7 @@ async def get_evolucao_anual(
         )
         .where(*_condicoes(filtros), GenerationProject.inicio_vigencia_ano.isnot(None))
         .group_by(GenerationProject.inicio_vigencia_ano)
-        .order_by(GenerationProject.inicio_vigencia_ano.asc())  # ordenação cronológica
+        .order_by(GenerationProject.inicio_vigencia_ano.asc())
     )
 
     resultado = await db.execute(stmt)
@@ -159,10 +161,71 @@ async def get_evolucao_anual(
         dados.append(
             {
                 "ano": int(ano),
-                "potencia_total": potencia_total,
+                "potencia_total": float(potencia_total),
                 "total_projetos": total_projetos,
-                "potencia_acumulada": acumulado,
+                "potencia_acumulada": float(acumulado),
             }
         )
 
     return dados
+
+
+async def get_origem(
+    db: AsyncSession, filtros: FiltrosQuery | None = None
+) -> list[dict]:
+    """Retorna potência e quantidade por tipo de geração (Solar vs Eólica)."""
+    stmt = (
+        select(
+            GenerationProject.origem,
+            func.coalesce(func.sum(GenerationProject.potencia_outorgada_kw), 0).label("potencia_total_kw"),
+            func.count(GenerationProject.ceg).label("total_projetos"),
+        )
+        .where(*_condicoes(filtros))
+        .group_by(GenerationProject.origem)
+        .order_by(func.sum(GenerationProject.potencia_outorgada_kw).desc())
+    )
+
+    resultado = await db.execute(stmt)
+
+    return [
+        {
+            "origem": origem,
+            "potencia_total_mw": float(Decimal(potencia_total_kw or 0) / KW_PARA_MW),
+            "total_projetos": total_projetos,
+        }
+        for origem, potencia_total_kw, total_projetos in resultado.all()
+    ]
+
+
+async def get_ranking_clientes(
+    db: AsyncSession, limite: int = 20, filtros: FiltrosQuery | None = None
+) -> list[dict]:
+    """Retorna os top clientes ordenados por potência outorgada total."""
+    
+    limite_seguro = min(max(1, limite), 100)
+
+    stmt = (
+        select(
+            Client.id,
+            Client.nome_oficial,
+            func.coalesce(func.sum(GenerationProject.potencia_outorgada_kw), 0).label("potencia_total_kw"),
+            func.count(GenerationProject.ceg).label("total_projetos"),
+        )
+        .join(Client, GenerationProject.cliente_id == Client.id)
+        .where(*_condicoes(filtros))
+        .group_by(Client.id, Client.nome_oficial)
+        .order_by(func.sum(GenerationProject.potencia_outorgada_kw).desc())
+        .limit(limite_seguro)
+    )
+
+    resultado = await db.execute(stmt)
+
+    return [
+        {
+            "cliente_id": cliente_id,
+            "nome_oficial": nome_oficial,
+            "potencia_total_mw": float(Decimal(potencia_total_kw or 0) / KW_PARA_MW),
+            "total_projetos": total_projetos,
+        }
+        for cliente_id, nome_oficial, potencia_total_kw, total_projetos in resultado.all()
+    ]
