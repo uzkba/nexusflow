@@ -3,8 +3,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/app-shell";
 import { Login } from "./pages/LoginPage";
-// 1. Importe a página que acabamos de criar
 import { VisaoGeralPage } from "./pages/VisaoGeral";
+// 1. Importe a nova página de Base de Dados
+import { BaseDeDadosPage } from "./pages/BaseDeDados"; 
 
 const BYPASS_AUTH = import.meta.env.DEV && import.meta.env.VITE_BYPASS_AUTH === "true";
 
@@ -23,11 +24,13 @@ export default function App() {
 
           <Route element={BYPASS_AUTH ? <Outlet /> : <ProtectedRoute />}>
             <Route element={<AppShell />}>
-              {/* 2. Substitua o Placeholder pelo componente real aqui */}
               <Route path="/dashboard" element={<VisaoGeralPage />} />
               
               <Route path="/geolocalizacao" element={<Placeholder title="Geolocalização" />} />
-              <Route path="/base-de-dados" element={<Placeholder title="Base de Dados" />} />
+              
+              {/* 2. Substitua o Placeholder pelo componente real */}
+              <Route path="/base-de-dados" element={<BaseDeDadosPage />} />
+              
               <Route
                 path="/aprovacao-consolidacao"
                 element={<Placeholder title="Aprovação de Consolidação" />}

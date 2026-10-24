@@ -3,7 +3,6 @@ import { KpiCards } from "@/components/dashboard/KpiCards";
 import { useOrigemDashboard, useRankingClientes } from "@/hooks/use-dashboard";
 import { GraficoOrigem } from "@/components/dashboard/GraficoOrigem";
 import { GraficoRanking } from "@/components/dashboard/GraficoRanking";
-import { ProjetosTable } from "@/components/projetos/ProjetosTable"; // <-- Importe aqui
 
 export function VisaoGeralPage() {
   const { filtros } = useFiltros();
@@ -51,14 +50,6 @@ export function VisaoGeralPage() {
             )}
           </div>
         </div>
-
-        {/* NOVA SEÇÃO: BASE DE DADOS */}
-        <div className="rounded-xl border bg-card text-card-foreground shadow p-6">
-          <h3 className="font-semibold mb-4">Base de Dados</h3>
-          {/* Repassa os filtros globais para a tabela */}
-          <ProjetosTable filtrosGlobais={paramsAtivos} /> 
-        </div>
-
       </div>
     </div>
   );
