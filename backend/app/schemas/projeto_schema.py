@@ -1,10 +1,4 @@
-"""
-Schemas Pydantic do endpoint GET /api/projetos
-
-Espelha o model real `GenerationProject` (tabela `projetos_geracao`).
-PK é `ceg` (Código Único ANEEL, string) — não há coluna `id` incremental.
-"""
-
+# backend/app/schemas/projeto_schema.py
 import uuid
 from datetime import datetime
 from typing import Generic, TypeVar
@@ -30,10 +24,11 @@ class ProjetoOut(BaseModel):
     inicio_vigencia_ano: int | None = None
     latitude: float | None = None
     longitude: float | None = None
-    # ReviewStatus é um Enum do SQLAlchemy — se ele NÃO herdar de `str`
-    # (i.e. não for `class ReviewStatus(str, Enum)`), troque o tipo abaixo
-    # pelo Enum real (`status_revisao: ReviewStatus`) para validar certo.
+    
+    # ReviewStatus é um Enum do SQLAlchemy. 
+    # Validamos como string no frontend, pois o FastAPI serializa Enums nativamente para string.
     status_revisao: str
+    
     criado_em: datetime
     atualizado_em: datetime
 
