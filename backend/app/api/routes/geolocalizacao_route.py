@@ -1,92 +1,96 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select, true
+from sqlalchemy import func, select, true, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_db
-
-# Ajuste este import para o caminho real do seu módulo de models
 from backend.app.model.models import GenerationProject
-from backend.app.schemas.geolocalizacao_schema import GeolocalizacaoItem, GeolocalizacaoResponse
+
+# Importando o teu schema unificado
+from backend.app.schemas.geolocalizacao_schema import (
+    GeolocalizacaoResponse, 
+    GeolocalizacaoItem
+)
 
 router = APIRouter(prefix="/api", tags=["Geolocalização"])
-
 
 @router.get(
     "/geolocalizacao",
     response_model=GeolocalizacaoResponse,
-    summary="Dados agregados de projetos por Município/UF para mapas",
+    summary="Dados geográficos agregados para Mapa e Ranking",
     description=(
-        "Agrega os projetos de geração por Município e UF, retornando a "
-        "quantidade de projetos e a potência outorgada total em cada "
-        "município. Como um projeto pode abranger mais de um município "
-        "(campo `municipios` é uma lista), a potência total do projeto é "
-        "contabilizada em cada município ao qual ele pertence — a soma "
-        "entre municípios pode, portanto, ser maior que a soma real de "
-        "potência da base. Registros com UF ou lista de municípios nulos "
-        "são descartados para não quebrar o parse do JSON no mapa."
+        "Agrega os projetos utilizando LATERAL JOIN para desempacotar o JSONB. "
+        "Retorna a quantidade de projetos, potência total e as coordenadas médias "
+        "do município para plotagem no ECharts. Projetos sem coordenadas são ignorados."
     ),
 )
 async def get_geolocalizacao(
     db: AsyncSession = Depends(get_db),
 ) -> GeolocalizacaoResponse:
-    # Filtra ANTES do LATERAL JOIN, numa subquery: o WHERE da query externa
-    # só roda depois que o LATERAL já tentou desempacotar cada linha, então
-    # não adianta pra evitar erro em linhas com município nulo/inválido.
-    #
-    # Municipios=None em Python vira o literal JSON `null` no banco (não
-    # SQL NULL) por padrão no SQLAlchemy/JSONB — por isso checamos as duas
-    # coisas: isnot(None) (SQL NULL) e jsonb_typeof(...) == "array" (JSON
-    # null, objeto ou string acidentalmente salvos na coluna).
+    
+    # 1. Base com as colunas reais corrigidas (incluindo latitude e longitude)
     base = (
         select(
             GenerationProject.ceg,
             GenerationProject.uf,
             GenerationProject.municipios,
             GenerationProject.potencia_outorgada_kw,
+            GenerationProject.latitude,
+            GenerationProject.longitude,
         )
         .where(
             GenerationProject.uf.isnot(None),
             GenerationProject.municipios.isnot(None),
             func.jsonb_typeof(GenerationProject.municipios) == "array",
+            # Filtros adicionados para ignorar os 66 projetos com coordenadas nulas:
+            GenerationProject.latitude.isnot(None),
+            GenerationProject.longitude.isnot(None),
         )
         .subquery("base")
     )
 
-    # jsonb_array_elements_text "desempacota" a lista de municípios de cada
-    # projeto em uma linha por município, via LATERAL JOIN.
+    # 2. Desempacota o array de municípios
     municipio_expand = (
         func.jsonb_array_elements_text(base.c.municipios)
         .table_valued("municipio")
-        .render_derived()  # força "AS anon_1(municipio)" no SQL — sem isso
-        .lateral()          # o Postgres não sabe o nome da coluna expandida
+        .render_derived()
+        .lateral()
     )
 
+    # 3. Query final unificada (Ranking + Coordenadas para o Mapa)
     stmt = (
         select(
             base.c.uf.label("uf"),
             municipio_expand.c.municipio.label("municipio"),
-            func.count(func.distinct(base.c.ceg)).label(
-                "quantidade_projetos"
-            ),
+            func.count(func.distinct(base.c.ceg)).label("quantidade_projetos"),
             func.sum(base.c.potencia_outorgada_kw).label("potencia_total"),
+            # Agregamos as coordenadas (média) para ter o ponto central do município
+            func.avg(base.c.latitude).label("latitude"),
+            func.avg(base.c.longitude).label("longitude"),
         )
         .select_from(base)
         .join(municipio_expand, true())
         .group_by(base.c.uf, municipio_expand.c.municipio)
-        .order_by(base.c.uf, municipio_expand.c.municipio)
+        .order_by(desc("quantidade_projetos"))
     )
 
     resultado = await db.execute(stmt)
     resultados = resultado.all()
 
-    dados = [
-        GeolocalizacaoItem(
-            uf=row.uf,
-            municipio=row.municipio,
-            quantidade_projetos=row.quantidade_projetos,
-            potencia_total=float(row.potencia_total or 0),
+    # 4. Formata a resposta para o Pydantic
+    dados = []
+    for row in resultados:
+        dados.append(
+            GeolocalizacaoItem(
+                uf=row.uf,
+                municipio=row.municipio,
+                quantidade_projetos=row.quantidade_projetos,
+                potencia_total=float(row.potencia_total or 0.0),
+                latitude=float(row.latitude or 0.0),
+                longitude=float(row.longitude or 0.0)
+            )
         )
-        for row in resultados
-    ]
 
-    return GeolocalizacaoResponse(total_municipios=len(dados), dados=dados)
+    return GeolocalizacaoResponse(
+        total_municipios=len(dados),
+        dados=dados
+    )
