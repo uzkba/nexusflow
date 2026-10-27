@@ -35,3 +35,6 @@ Thumbs.db
 # --- Playwright / E2E ---
 playwright-report/
 test-results/
+
+# --- Dados / ETL ---
+data/
