@@ -1,8 +1,5 @@
 """
 Testes de integração de /api/consolidacoes.
-
-Seguem o padrão da suíte de auth: PostgreSQL real via testcontainers,
-isolamento por transação/rollback por teste, e httpx.AsyncClient com ASGITransport.
 """
 
 from __future__ import annotations
@@ -17,7 +14,8 @@ from jose import jwt
 
 from backend.app.enum import ConsolidationStatus, UserRole
 from backend.app.enum.consolidacao import MotivoPendenciaEnum
-from backend.app.model.models import PendingConsolidation, User, Client
+# 👇 Adicionado o RawName na importação
+from backend.app.model.models import PendingConsolidation, User, Client, GenerationProject, RawName
 
 pytestmark = pytest.mark.asyncio
 
@@ -37,15 +35,37 @@ async def _criar_usuario(db_session) -> User:
         ativo=True,
     )
     db_session.add(usuario)
-    await db_session.flush()  # Substituído commit() por flush() para não quebrar o rollback do teste
+    await db_session.commit()
     await db_session.refresh(usuario)
     return usuario
 
-async def _criar_cliente(db_session):
-    cliente = Client(id=uuid.uuid4(), nome="Cliente Teste")
+async def _criar_cliente(db_session) -> uuid.UUID:
+    cliente = Client(id=uuid.uuid4(), nome_oficial="Cliente Teste")
     db_session.add(cliente)
-    await db_session.flush()
+    await db_session.commit()
     return cliente.id
+
+# 👇 Novo Helper para criar a entidade do nome bruto
+async def _criar_raw_name(db_session) -> int:
+    # 👇 Adicionamos o uuid.uuid4() no final da string para garantir que nunca se repita
+    raw = RawName(nome_bruto=f"Empresa Bruta Teste {uuid.uuid4()}")
+    db_session.add(raw)
+    await db_session.commit()
+    await db_session.refresh(raw)
+    return raw.id
+
+async def _criar_projeto(db_session, ceg="CEG-TESTE-001") -> str:
+    projeto = GenerationProject(
+        ceg=ceg,
+        uf="SP",
+        municipios=["Campinas"],
+        potencia_outorgada_kw=100.0,
+        latitude=-22.9,
+        longitude=-47.0
+    )
+    db_session.add(projeto)
+    await db_session.commit()
+    return projeto.ceg
 
 def _gerar_token(usuario: User) -> str:
     agora = datetime.now(timezone.utc)
@@ -56,7 +76,6 @@ def _gerar_token(usuario: User) -> str:
         "exp": agora + timedelta(minutes=15),
         "jti": str(uuid.uuid4()),
     }
-    # Adicionado fallback para evitar erro se a var de ambiente não estiver setada no teste
     secret = os.environ.get("JWT_SECRET_KEY", "secret-test-key")
     return jwt.encode(payload, secret, algorithm=ALGORITHM)
 
@@ -70,37 +89,40 @@ async def _client_autenticado(client: AsyncClient, usuario: User) -> AsyncClient
 async def _criar_pendencia_consolidacao_nome(
     db_session, status: ConsolidationStatus = ConsolidationStatus.pendente
 ) -> PendingConsolidation:
+    cliente_id = await _criar_cliente(db_session)
+    raw_name_id = await _criar_raw_name(db_session)  # Cria o nome bruto
+    
     item = PendingConsolidation(
         motivo_pendencia=MotivoPendenciaEnum.consolidacao_nome,
         status=status,
-        nome_bruto_id=None,
-        cliente_sugerido_id=None,  # <-- CORREÇÃO AQUI: removido uuid.uuid4() para evitar erro de FK
+        nome_bruto_id=raw_name_id,  # 👇 Vincula o ID real para o serviço encontrar e não dar 404
+        cliente_sugerido_id=cliente_id,
         score_similaridade=92.5,
         ceg=None,
         diff_pendente=None,
     )
     db_session.add(item)
-    await db_session.flush()
+    await db_session.commit()
     await db_session.refresh(item)
     return item
 
 
 async def _criar_pendencia_alteracao_dado(
     db_session,
-    ceg: str | None = None, # <-- CORREÇÃO AQUI: Passando None por padrão para evitar erro de FK
     status: ConsolidationStatus = ConsolidationStatus.pendente,
 ) -> PendingConsolidation:
+    ceg_id = await _criar_projeto(db_session)
     item = PendingConsolidation(
         motivo_pendencia=MotivoPendenciaEnum.alteracao_dado,
         status=status,
         nome_bruto_id=None,
         cliente_sugerido_id=None,
         score_similaridade=None,
-        ceg=ceg,
+        ceg=ceg_id,  
         diff_pendente={"potencia_outorgada_kw": {"de": 100.0, "para": 120.0}},
     )
     db_session.add(item)
-    await db_session.flush()
+    await db_session.commit()
     await db_session.refresh(item)
     return item
 
@@ -123,8 +145,6 @@ class TestListarPendentes:
 
         assert response.status_code == 200
         ids = [item["id"] for item in response.json()]
-        
-        # CORREÇÃO AQUI: removido o str()
         assert ids == [pendente.id]
 
     async def test_inclui_motivo_pendencia_dos_dois_tipos(self, client: AsyncClient, db_session):
@@ -170,8 +190,8 @@ class TestAprovar:
         usuario = await _criar_usuario(db_session)
         await _client_autenticado(client, usuario)
         item = await _criar_pendencia_alteracao_dado(db_session)
+        
         assert item.diff_pendente is not None  # pré-condição
-
         response = await client.patch(f"/api/consolidacoes/{item.id}/aprovar")
 
         assert response.status_code == 200
@@ -207,8 +227,6 @@ class TestAprovar:
         usuario = await _criar_usuario(db_session)
         await _client_autenticado(client, usuario)
 
-        # Retornado para Integer. O FastAPI vai validar como tipo correto,
-        # buscar no banco, não encontrar e aí sim retornar 404.
         response = await client.patch("/api/consolidacoes/999999/aprovar")
 
         assert response.status_code == 404
@@ -219,7 +237,6 @@ class TestAprovar:
         response = await client.patch(f"/api/consolidacoes/{item.id}/aprovar")
 
         assert response.status_code == 401
-
 
 # ---------------------------------------------------------------------------
 # PATCH /api/consolidacoes/{id}/rejeitar

@@ -1,16 +1,10 @@
 """
 Testes de integração do endpoint GET /api/geolocalizacao.
-
-Assume fixtures `db_session` (AsyncSession de teste) e `client`
-(httpx.AsyncClient) já existentes no conftest.py do projeto, seguindo o
-padrão pytest-asyncio usado nos demais testes de integração do NexusFlow.
 """
 import pytest
-
-from backend.app.model import GenerationProject
+from backend.app.model.models import GenerationProject
 
 pytestmark = pytest.mark.asyncio
-
 
 async def test_geolocalizacao_agrega_quantidade_e_potencia(db_session, client):
     db_session.add_all(
@@ -20,18 +14,24 @@ async def test_geolocalizacao_agrega_quantidade_e_potencia(db_session, client):
                 uf="SP",
                 municipios=["Campinas"],
                 potencia_outorgada_kw=100,
+                latitude=-22.9,
+                longitude=-47.0
             ),
             GenerationProject(
                 ceg="CEG-002",
                 uf="SP",
                 municipios=["Campinas"],
                 potencia_outorgada_kw=50,
+                latitude=-22.9,
+                longitude=-47.0
             ),
             GenerationProject(
                 ceg="CEG-003",
                 uf="BA",
                 municipios=["Salvador"],
                 potencia_outorgada_kw=200,
+                latitude=-12.9,
+                longitude=-38.5
             ),
         ]
     )
@@ -61,6 +61,8 @@ async def test_geolocalizacao_projeto_com_multiplos_municipios_conta_em_cada_um(
             uf="MG",
             municipios=["Uberlândia", "Araguari"],
             potencia_outorgada_kw=300,
+            latitude=-18.9,
+            longitude=-48.2
         )
     )
     await db_session.commit()
@@ -71,7 +73,6 @@ async def test_geolocalizacao_projeto_com_multiplos_municipios_conta_em_cada_um(
     ub = next(d for d in data["dados"] if d["municipio"] == "Uberlândia")
     ar = next(d for d in data["dados"] if d["municipio"] == "Araguari")
 
-    # o mesmo projeto é contabilizado em cada município ao qual pertence
     assert ub["quantidade_projetos"] == 1
     assert ub["potencia_total"] == 300.0
     assert ar["quantidade_projetos"] == 1
@@ -88,12 +89,14 @@ async def test_geolocalizacao_ignora_registros_com_localizacao_nula(
                 uf="SP",
                 municipios=["Campinas"],
                 potencia_outorgada_kw=100,
+                latitude=-22.9,
+                longitude=-47.0
             ),
             GenerationProject(
-                ceg="CEG-021", uf=None, municipios=None, potencia_outorgada_kw=999
+                ceg="CEG-021", uf=None, municipios=None, potencia_outorgada_kw=999, latitude=None, longitude=None
             ),
             GenerationProject(
-                ceg="CEG-022", uf="SP", municipios=None, potencia_outorgada_kw=999
+                ceg="CEG-022", uf="SP", municipios=None, potencia_outorgada_kw=999, latitude=None, longitude=None
             ),
         ]
     )
