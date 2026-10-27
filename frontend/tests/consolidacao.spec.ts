@@ -82,23 +82,23 @@ test.describe('Aprovação de Consolidação e Pendências', () => {
   });
 
   test('deve simular rejeição de consolidação', async ({ page }) => {
-    // Intercepta e mocka o PATCH de rejeição para a pendência ID 2
+    // 1. Intercepta e mocka o PATCH de rejeição para a pendência ID 2
     await page.route('**/api/consolidacoes/2/rejeitar', async (route) => {
       await route.fulfill({ status: 200, json: { success: true } });
     });
 
-    const cardConsolidacao = page.locator('.rounded-lg', { hasText: 'EOL-98765' });
-    
-    // Clica no botão Rejeitar
-    const btnRejeitar = cardConsolidacao.getByRole('button', { name: 'Rejeitar' });
-    await btnRejeitar.click();
-
-    // Intercepta o novo GET na ROTA CORRETA após invalidação e retorna um array vazio
+    // 👇 A MUDANÇA É AQUI: Prepara o NOVO GET (retornando vazio) ANTES de clicar!
     await page.route('**/api/consolidacoes/pendentes', async (route) => {
       await route.fulfill({ status: 200, json: [] });
     });
 
-    // Verifica se a tela de estado vazio (empty state) apareceu
+    const cardConsolidacao = page.locator('.rounded-lg', { hasText: 'EOL-98765' });
+    const btnRejeitar = cardConsolidacao.getByRole('button', { name: 'Rejeitar' });
+    
+    // 2. Agora sim, clica no botão. O refetch vai cair no mock vazio que preparamos acima.
+    await btnRejeitar.click();
+
+    // 3. Verifica se a tela de estado vazio apareceu
     await expect(page.getByText('Nenhuma pendência na fila de revisão no momento.')).toBeVisible();
   });
 
