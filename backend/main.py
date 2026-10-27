@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.api.routes import auth_route, consolidacoes_route, projetos_route, dashboard_route, geolocalizacao_route
+from backend.app.api.routes import (
+    auth_route, 
+    consolidacoes_route, 
+    projetos_route, 
+    dashboard_route, 
+    geolocalizacao_route,
+    etl_runs_route  # <-- Importação do novo router adicionada
+)
 
 app = FastAPI(title="Painel Executivo — Outorgas de Geração")
 
@@ -18,11 +25,13 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
+# Registro das rotas da API
 app.include_router(auth_route.router)
 app.include_router(consolidacoes_route.router)
 app.include_router(geolocalizacao_route.router)
 app.include_router(projetos_route.router)
 app.include_router(dashboard_route.router)
+app.include_router(etl_runs_route.router)  # <-- Registro do novo router adicionado
 
 @app.get("/health")
 def health():
