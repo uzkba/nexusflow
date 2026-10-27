@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
+      "@": path.resolve(__dirname, "./src"),
     },
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
@@ -14,8 +14,10 @@ export default defineConfig({
     include: ['react', 'react-dom', 'react-router-dom'],
   },
   server: {
+    host: true, 
     proxy: {
       '/api': {
+        // Aponta para o nome do serviço do FastAPI no docker-compose
         target: 'http://backend:8000', 
         changeOrigin: true,
         secure: false,
