@@ -1,0 +1,7 @@
+# File: .gitattributes
+
+# Set default behavior
+* text=auto
+
+# Force shell scripts to always use LF (Linux line endings)
+*.sh text eol=lf
