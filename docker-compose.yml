@@ -11,7 +11,6 @@ services:
       - "5432:5432"
     volumes:
       - nexusflow_pgdata:/var/lib/postgresql/data
-      # Mount the backup folder here as well so we can easily run pg_restore from inside this container
       - ./data/backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -38,8 +37,8 @@ services:
 
   backend:
     build:
-      context: .                      # contexto na raiz
-      dockerfile: backend/Dockerfile  # caminho do Dockerfile do back
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: nexusflow-backend-dev
     restart: unless-stopped
     env_file:
@@ -50,20 +49,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app  
+      - .:/app
       - /var/run/docker.sock:/var/run/docker.sock
-
-  # worker:
-  #   build:
-  #     context: ./worker
-  #     dockerfile: Dockerfile
-  #   container_name: nexusflow-worker-dev
-  #   restart: unless-stopped
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
 
   frontend:
     build:
@@ -80,6 +67,17 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
+      - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: nexusflow-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
       - backend
 
 volumes:
