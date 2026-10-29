@@ -1,46 +1,55 @@
 import asyncio
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+import sys
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-# Ajuste os imports abaixo conforme a estrutura do seu projeto
-from backend.app.model.models import User
+from backend.app.core.security import hash_password
 from backend.app.enum import UserRole
-from backend.app.core.security import hash_password  # Ajuste o caminho se necessário
+from backend.app.model.models import User
 
-async def main():
-    # Puxa a URL do banco (fallback para localhost se rodar no seu venv Windows)
-    db_url = os.getenv(
-        "DATABASE_URL", 
-        "postgresql+asyncpg://nexusflow:nexusflow_dev_local@localhost:5432/nexusflow_dev"
-    )
-    
+MIN_SENHA = 12
+
+
+async def main() -> int:
+    db_url = os.environ.get("DATABASE_URL")
+    email = os.environ.get("ADMIN_EMAIL", "").strip()
+    senha = os.environ.get("ADMIN_PASSWORD", "")
+
+    if not db_url:
+        print("ERRO: DATABASE_URL não definida.")
+        return 1
+    if not email or "@" not in email:
+        print("ERRO: defina ADMIN_EMAIL com um e-mail válido.")
+        return 1
+    if len(senha) < MIN_SENHA:
+        print(f"ERRO: ADMIN_PASSWORD precisa ter pelo menos {MIN_SENHA} caracteres.")
+        return 1
+
     engine = create_async_engine(db_url)
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async_session = async_sessionmaker(engine, expire_on_commit=False)
+        async with async_session() as session:
+            result = await session.execute(select(User).where(User.email == email))
+            if result.scalar_one_or_none():
+                print(f"O usuário {email} já existe. Nada foi alterado.")
+                return 0
 
-    async with async_session() as session:
-        email_admin = "admin@nexusflow.com"
-        
-        # Verifica se o usuário já existe para evitar erros
-        stmt = select(User).where(User.email == email_admin)
-        resultado = await session.execute(stmt)
-        usuario_existente = resultado.scalar_one_or_none()
-        
-        if usuario_existente:
-            print(f"O usuário {email_admin} já existe no banco.")
-            return
+            session.add(
+                User(
+                    email=email,
+                    senha_hash=hash_password(senha),
+                    papel=UserRole.admin,
+                    ativo=True,
+                )
+            )
+            await session.commit()
+            print(f"SUCESSO: admin {email} criado.")
+            return 0
+    finally:
+        await engine.dispose()
 
-        # Cria o novo usuário
-        novo_usuario = User(
-            email=email_admin,
-            senha_hash=hash_password("123456"),
-            papel=UserRole.admin,
-            ativo=True
-        )
-        
-        session.add(novo_usuario)
-        await session.commit()
-        print(f"SUCESSO: Usuário {email_admin} criado com a senha '123456'.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))
