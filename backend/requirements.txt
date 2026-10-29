@@ -12,9 +12,12 @@ pytest-asyncio
 testcontainers[postgres]
 psycopg[binary]
 pandas
+httpx
 httpx2
 python-dotenv
 pytest-cov
 rapidfuzz
 greenlet
 sqlalchemy[asyncio]
+apscheduler==3.10.4
+pydantic-settings>=2.0.0
