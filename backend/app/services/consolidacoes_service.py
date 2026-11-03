@@ -24,6 +24,21 @@ from backend.app.enum.projeto_geracao import ReviewStatus
 from backend.app.enum.consolidacao import MotivoPendenciaEnum
 
 
+def _sem_diff_tecnico():
+    """
+    Projeto sem diff técnico pendente: diff_pendente é SQL NULL ou JSON null.
+
+    Usa or_() para que a condição seja SEMPRE agrupada entre parênteses ao ser
+    combinada com outras no WHERE. Um text() solto com "A OR B" dentro de um
+    AND vira "X AND A OR B" (AND tem precedência sobre OR) e atinge linhas de
+    outros projetos.
+    """
+    return or_(
+        GenerationProject.diff_pendente.is_(None),
+        text("projetos_geracao.diff_pendente = 'null'::jsonb"),
+    )
+
+
 async def listar_pendentes(db: AsyncSession) -> list[dict]:
     """
     Retorna todas as pendências enriquecidas com agregados (UFs, municípios, 
@@ -171,7 +186,7 @@ async def aprovar_pendencia(
         # 3. Remover status 'pendente' apenas dos projetos que NÃO têm diff técnico
         stmt_status = update(GenerationProject).where(
             GenerationProject.nome_bruto_principal_id == item.nome_bruto_id,
-            text("projetos_geracao.diff_pendente IS NULL OR projetos_geracao.diff_pendente = 'null'::jsonb")
+            _sem_diff_tecnico(),
         ).values(status_revisao=ReviewStatus.aprovado)
         await db.execute(stmt_status)
 
@@ -219,7 +234,7 @@ async def rejeitar_pendencia(
         # 3. Remover status 'pendente' apenas dos projetos que NÃO têm diff técnico
         stmt_status = update(GenerationProject).where(
             GenerationProject.nome_bruto_principal_id == item.nome_bruto_id,
-            text("projetos_geracao.diff_pendente IS NULL OR projetos_geracao.diff_pendente = 'null'::jsonb")
+            _sem_diff_tecnico(),
         ).values(status_revisao=ReviewStatus.aprovado)
         await db.execute(stmt_status)
 
