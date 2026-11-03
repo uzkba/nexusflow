@@ -32,7 +32,11 @@ router = APIRouter(
     "/api/kpis",
     response_model=KPIsResponse,
     summary="Totalizadores e indicadores gerais do portfólio",
-    description="Retorna os totalizadores. Regra de negócio: cliente_id não nulo. Ignora status_revisao."
+    description=(
+        "Retorna os totalizadores de todo o portfólio. Regra de negócio: ignora "
+        "status_revisao e inclui projetos sem cliente consolidado (contados em "
+        "projetos_sem_proprietario)."
+    ),
 )
 async def obter_kpis(
     filtros: Annotated[FiltrosQuery, Query()],
