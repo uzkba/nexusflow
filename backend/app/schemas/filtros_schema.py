@@ -21,6 +21,23 @@ def _sem_acento_minusculo(texto: str) -> str:
     return "".join(c for c in decomposto if unicodedata.category(c) != "Mn").lower()
 
 
+def normalizar_origem(valor: str | None) -> str | None:
+    """
+    Converte 'solar', 'SOLAR', 'eolica', 'Eólica', 'EOL' etc. para o valor gravado
+    no banco ('Solar' / 'Eólica'). 'Todas'/'Todos'/vazio viram None (sem filtro).
+    Qualquer outro valor passa como veio (sem espaços nas pontas).
+
+    Função pública: reutilizada por todos os serviços que filtram por origem,
+    para a regra existir em um único lugar.
+    """
+    if valor is None:
+        return None
+    chave = _sem_acento_minusculo(valor)
+    if chave in _ORIGEM_SEM_FILTRO:
+        return None
+    return _ORIGEM_CANONICA.get(chave, valor.strip())
+
+
 class FiltrosQuery(BaseModel):
     origem: str | None = None
     cliente: UUID | None = None
@@ -37,10 +54,4 @@ class FiltrosQuery(BaseModel):
     @field_validator("origem")
     @classmethod
     def origem_canonica(cls, v: str | None) -> str | None:
-        """Aceita 'solar', 'SOLAR', 'eolica', 'Eólica' etc. e devolve o valor gravado no banco."""
-        if v is None:
-            return v
-        chave = _sem_acento_minusculo(v)
-        if chave in _ORIGEM_SEM_FILTRO:
-            return None
-        return _ORIGEM_CANONICA.get(chave, v.strip())
+        return normalizar_origem(v)

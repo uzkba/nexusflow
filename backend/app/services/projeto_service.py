@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # --- Ajuste o import do model para o caminho real ---
 from backend.app.model.models import GenerationProject
+from backend.app.schemas.filtros_schema import normalizar_origem
 
 FILTROS_EXATOS = {
     "uf": GenerationProject.uf,
@@ -20,9 +21,16 @@ def _aplicar_filtros(
     search: str | None
 ):
     """Aplica, de forma dinâmica, apenas os filtros que vierem preenchidos."""
-    valores = {"uf": uf, "status": status, "origem": origem}
+    # Normaliza antes de comparar: o banco guarda 'Solar' / 'Eólica' e a
+    # comparação é exata, então 'solar' ou 'eolica' devolveriam lista vazia.
+    valores = {
+        "uf": uf.strip().upper() if uf else None,
+        "status": status,
+        "origem": normalizar_origem(origem),
+    }
     for nome, valor in valores.items():
-        if valor is not None:
+        # Texto vazio ("") também significa "sem filtro"
+        if valor:
             coluna = FILTROS_EXATOS[nome]
             stmt = stmt.where(coluna == valor)
 
