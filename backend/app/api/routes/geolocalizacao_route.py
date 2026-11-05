@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, true, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,9 @@ from backend.app.schemas.geolocalizacao_schema import (
     GeolocalizacaoResponse, 
     GeolocalizacaoItem
 )
+from backend.app.schemas.filtros_schema import FiltrosQuery
+# Mesmas condições de filtro da sidebar usadas na Visão Geral (regra em um só lugar)
+from backend.app.services.dashboard_service import _condicoes as condicoes_filtros
 
 router = APIRouter(prefix="/api", tags=["Geolocalização"])
 
@@ -20,10 +25,12 @@ router = APIRouter(prefix="/api", tags=["Geolocalização"])
     description=(
         "Agrega os projetos utilizando LATERAL JOIN para desempacotar o JSONB. "
         "Retorna a quantidade de projetos, potência total e as coordenadas médias "
-        "do município para plotagem no ECharts. Projetos sem coordenadas são ignorados."
+        "do município para plotagem no ECharts. Projetos sem coordenadas são ignorados. "
+        "Aceita os mesmos filtros da sidebar (origem, cliente, nome, uf, municipio, ano)."
     ),
 )
 async def get_geolocalizacao(
+    filtros: Annotated[FiltrosQuery, Query()],
     db: AsyncSession = Depends(get_db),
 ) -> GeolocalizacaoResponse:
     
@@ -44,6 +51,8 @@ async def get_geolocalizacao(
             # Filtros adicionados para ignorar os 66 projetos com coordenadas nulas:
             GenerationProject.latitude.isnot(None),
             GenerationProject.longitude.isnot(None),
+            # Filtros da sidebar (origem, cliente, nome, uf, municipio, ano)
+            *condicoes_filtros(filtros),
         )
         .subquery("base")
     )
@@ -72,6 +81,11 @@ async def get_geolocalizacao(
         .group_by(base.c.uf, municipio_expand.c.municipio)
         .order_by(desc("quantidade_projetos"))
     )
+
+    # Com filtro de município, um projeto que cobre vários municípios não deve
+    # gerar linhas dos outros municípios dele.
+    if filtros.municipio:
+        stmt = stmt.where(municipio_expand.c.municipio == filtros.municipio)
 
     resultado = await db.execute(stmt)
     resultados = resultado.all()
