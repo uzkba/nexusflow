@@ -7,10 +7,11 @@ export type StatusRevisao = 'pendente' | 'aprovada' | 'rejeitada';
 
 export type MotivoPendencia = 'consolidacao_nome' | 'alteracao_dado';
 
-// Contrato alinhado com ConsolidacaoPendenteOut (GET /api/consolidacoes/pendentes)
+// Contrato alinhado com ConsolidacaoPendenteOut (GET /api/consolidacoes/pendentes e /decididas)
 export interface Pendencia {
   id: number;
   motivo_pendencia?: MotivoPendencia | null;
+  // 'pendente' | 'aprovado' | 'rejeitado'
   status?: string;
 
   // Consolidação de nome
@@ -32,6 +33,10 @@ export interface Pendencia {
   ceg?: string | null;
   // Agora é um Record (Dicionário) em vez de Array
   diff_pendente?: Record<string, DiffItem> | null;
+
+  // Quando e por quem foi decidida (só em /decididas)
+  decidido_em?: string | null;
+  decidido_por?: string | null;
 
   tipo?: string; // legado; o tipo real vem de motivo_pendencia
   status_revisao?: StatusRevisao;

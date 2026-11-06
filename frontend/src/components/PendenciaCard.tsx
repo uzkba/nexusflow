@@ -5,6 +5,8 @@ import { useMutatePendencia } from '../hooks/use-pendencias';
 
 interface PendenciaCardProps {
   pendencia: Pendencia;
+  // 'pendente': fila de revisão (Aprovar/Rejeitar). 'decidida': histórico (Reabrir/Trocar decisão).
+  modo?: 'pendente' | 'decidida';
 }
 
 const MAX_MUNICIPIOS_VISIVEIS = 4;
@@ -12,15 +14,23 @@ const MAX_MUNICIPIOS_VISIVEIS = 4;
 const formatarMW = (mw?: number) =>
   (mw ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
-export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia }) => {
-  const { aprovar, rejeitar } = useMutatePendencia();
+const formatarData = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia, modo = 'pendente' }) => {
+  const { aprovar, rejeitar, reabrir, inverter } = useMutatePendencia();
 
   // O tipo real vem de motivo_pendencia (a API não envia "tipo")
   const isAlteracao =
     pendencia.motivo_pendencia === 'alteracao_dado' || pendencia.tipo === 'alteracao_dado';
   const isConsolidacao = !isAlteracao;
 
-  const isLoading = aprovar.isPending || rejeitar.isPending;
+  const isDecidida = modo === 'decidida';
+  const foiAprovada = pendencia.status === 'aprovado';
+
+  const isLoading =
+    aprovar.isPending || rejeitar.isPending || reabrir.isPending || inverter.isPending;
+  const falhouAoAlterar = reabrir.isError || inverter.isError;
 
   const ufs = pendencia.ufs ?? [];
   const municipios = pendencia.municipios ?? [];
@@ -29,6 +39,30 @@ export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia }) => {
   const cegs = pendencia.cegs_relacionados ?? [];
   const temScore = pendencia.score_similaridade !== null && pendencia.score_similaridade !== undefined;
   const nomesNoGrupo = pendencia.nomes_sugeridos_para_cliente ?? 0;
+
+  const nome = pendencia.nome_bruto ?? 'Nome não informado';
+  const clienteSugerido = pendencia.cliente_sugerido_nome ?? 'Cliente não identificado';
+
+  const handleReabrir = () => {
+    if (window.confirm(`Reabrir "${nome}"? Ela volta para a fila de pendentes e os projetos ficam sem cliente.`)) {
+      reabrir.mutate(pendencia.id);
+    }
+  };
+
+  const handleInverter = () => {
+    const destino = foiAprovada ? 'REJEITADA' : 'APROVADA';
+    if (window.confirm(`Trocar a decisão de "${nome}" para ${destino}?`)) {
+      inverter.mutate(pendencia.id);
+    }
+  };
+
+  // Etiqueta no topo do card
+  let etiqueta = isAlteracao ? 'Alteração de Dados' : 'Consolidação';
+  let etiquetaClasse = isAlteracao ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800';
+  if (isDecidida) {
+    etiqueta = foiAprovada ? 'Aprovada' : 'Rejeitada';
+    etiquetaClasse = foiAprovada ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+  }
 
   return (
     <div className="rounded-lg border text-card-foreground shadow-sm bg-white mb-4">
@@ -40,17 +74,16 @@ export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia }) => {
                 Projeto CEG: <span className="text-blue-600">{pendencia.ceg}</span>
               </>
             ) : (
-              pendencia.nome_bruto ?? 'Nome não informado'
+              nome
             )}
           </h3>
-          <span
-            className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-              isAlteracao ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'
-            }`}
-          >
-            {isAlteracao ? 'Alteração de Dados' : 'Consolidação'}
+          <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-semibold ${etiquetaClasse}`}>
+            {etiqueta}
           </span>
         </div>
+        {isDecidida && pendencia.decidido_em && (
+          <p className="text-xs text-gray-500">Decidida em {formatarData(pendencia.decidido_em)}</p>
+        )}
       </div>
 
       <div className="p-6 pt-0">
@@ -58,13 +91,27 @@ export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia }) => {
         {isConsolidacao && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Agrupar este nome sob o cliente:{' '}
-              <span className="font-semibold text-gray-900">
-                {pendencia.cliente_sugerido_nome ?? 'Cliente não identificado'}
-              </span>
+              {!isDecidida && (
+                <>
+                  Agrupar este nome sob o cliente:{' '}
+                  <span className="font-semibold text-gray-900">{clienteSugerido}</span>
+                </>
+              )}
+              {isDecidida && foiAprovada && (
+                <>
+                  Agrupado sob o cliente:{' '}
+                  <span className="font-semibold text-gray-900">{clienteSugerido}</span>
+                </>
+              )}
+              {isDecidida && !foiAprovada && (
+                <>
+                  Agrupamento com <span className="font-semibold text-gray-900">{clienteSugerido}</span>{' '}
+                  recusado: o nome foi tratado como cliente isolado.
+                </>
+              )}
             </p>
 
-            {nomesNoGrupo > 1 && (
+            {!isDecidida && nomesNoGrupo > 1 && (
               <p className="text-xs text-gray-500">
                 {nomesNoGrupo} nomes estão sendo agrupados neste mesmo cliente.
               </p>
@@ -125,21 +172,56 @@ export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia }) => {
         )}
       </div>
 
+      {falhouAoAlterar && (
+        <p className="px-6 pb-2 text-sm text-red-600">
+          Não foi possível alterar a decisão. Atualize a página e tente novamente.
+        </p>
+      )}
+
       <div className="flex items-center p-6 pt-0 gap-3 border-t mt-4">
-        <button
-          onClick={() => aprovar.mutate(pendencia.id)}
-          disabled={isLoading}
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none bg-green-600 text-white hover:bg-green-700 h-10 px-4 py-2 mt-4"
-        >
-          {aprovar.isPending ? 'Aprovando...' : 'Aprovar'}
-        </button>
-        <button
-          onClick={() => rejeitar.mutate(pendencia.id)}
-          disabled={isLoading}
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none border border-red-200 bg-transparent hover:bg-red-100 text-red-600 h-10 px-4 py-2 mt-4"
-        >
-          {rejeitar.isPending ? 'Rejeitando...' : 'Rejeitar'}
-        </button>
+        {!isDecidida ? (
+          <>
+            <button
+              onClick={() => aprovar.mutate(pendencia.id)}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none bg-green-600 text-white hover:bg-green-700 h-10 px-4 py-2 mt-4"
+            >
+              {aprovar.isPending ? 'Aprovando...' : 'Aprovar'}
+            </button>
+            <button
+              onClick={() => rejeitar.mutate(pendencia.id)}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none border border-red-200 bg-transparent hover:bg-red-100 text-red-600 h-10 px-4 py-2 mt-4"
+            >
+              {rejeitar.isPending ? 'Rejeitando...' : 'Rejeitar'}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={handleReabrir}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 h-10 px-4 py-2 mt-4"
+            >
+              {reabrir.isPending ? 'Reabrindo...' : 'Reabrir'}
+            </button>
+            <button
+              onClick={handleInverter}
+              disabled={isLoading}
+              className={`inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none h-10 px-4 py-2 mt-4 ${
+                foiAprovada
+                  ? 'border border-red-200 bg-transparent hover:bg-red-100 text-red-600'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {inverter.isPending
+                ? 'Trocando...'
+                : foiAprovada
+                  ? 'Trocar para Rejeitada'
+                  : 'Trocar para Aprovada'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
