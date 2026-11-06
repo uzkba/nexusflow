@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 // Importando os nomes exatos que existem no seu arquivo
 import { useFiltros, Filtros } from "@/lib/useFiltros"; 
+// IMPORTANTE: Ajuste este caminho para o local correto do seu hook
+import { useFilterOptions } from "@/lib/useFilterOptions"; 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,16 +22,16 @@ const countActive = (f: Filtros) =>
   Object.values(f).filter((val) => val !== "").length;
 
 // Cores do texto da sidebar (fundo verde escuro): tudo em branco.
-// O menu que abre ao clicar no Select (SelectContent) mantém as cores padrão do tema.
 const LABEL_CLASS = "text-white";
 const SELECT_TRIGGER_CLASS = "text-white data-[placeholder]:text-white/70";
 const INPUT_CLASS = "text-white placeholder:text-white/60 disabled:text-white/50";
 
 export function FiltersPanel() {
-  // Pegando as funções e estados com os nomes exatos do seu hook
   const { filtros, setFiltros, limpar } = useFiltros();
-  
   const [draft, setDraft] = useState<Filtros>(filtros);
+
+  // Puxando as listas dinâmicas do hook
+  const { ufs, origens } = useFilterOptions(draft.uf);
 
   useEffect(() => {
     setDraft(filtros);
@@ -72,8 +74,12 @@ export function FiltersPanel() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas</SelectItem>
-            <SelectItem value="solar">Solar</SelectItem>
-            <SelectItem value="eolica">Eólica</SelectItem>
+            {/* Iterando sobre as origens (Solar, Eólica) que vêm do hook */}
+            {origens.map((origem) => (
+              <SelectItem key={origem.value} value={origem.value}>
+                {origem.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -117,9 +123,12 @@ export function FiltersPanel() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas</SelectItem>
-            <SelectItem value="MG">Minas Gerais (MG)</SelectItem>
-            <SelectItem value="BA">Bahia (BA)</SelectItem>
-            <SelectItem value="CE">Ceará (CE)</SelectItem>
+            {/* Iterando sobre os 27 estados que vêm do hook */}
+            {ufs.map((estado) => (
+              <SelectItem key={estado.value} value={estado.value}>
+                {estado.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
