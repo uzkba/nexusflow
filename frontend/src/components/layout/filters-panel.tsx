@@ -19,6 +19,12 @@ const VAZIOS: Filtros = { origem: "", cliente: "", nome: "", uf: "", municipio: 
 const countActive = (f: Filtros) => 
   Object.values(f).filter((val) => val !== "").length;
 
+// Cores do texto da sidebar (fundo verde escuro): tudo em branco.
+// O menu que abre ao clicar no Select (SelectContent) mantém as cores padrão do tema.
+const LABEL_CLASS = "text-white";
+const SELECT_TRIGGER_CLASS = "text-white data-[placeholder]:text-white/70";
+const INPUT_CLASS = "text-white placeholder:text-white/60 disabled:text-white/50";
+
 export function FiltersPanel() {
   // Pegando as funções e estados com os nomes exatos do seu hook
   const { filtros, setFiltros, limpar } = useFiltros();
@@ -52,16 +58,16 @@ export function FiltersPanel() {
   return (
     <div className="flex flex-col gap-5 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-sidebar-foreground">Filtros</h3>
+        <h3 className="text-sm font-semibold text-white">Filtros</h3>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="origem">Origem</Label>
+        <Label htmlFor="origem" className={LABEL_CLASS}>Origem</Label>
         <Select 
           value={draft.origem || undefined} 
           onValueChange={(v: string) => handleChange("origem", v === "todas" ? "" : v)}
         >
-          <SelectTrigger id="origem">
+          <SelectTrigger id="origem" className={SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
@@ -73,12 +79,12 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="cliente">Cliente</Label>
+        <Label htmlFor="cliente" className={LABEL_CLASS}>Cliente</Label>
         <Select 
           value={draft.cliente || undefined} 
           onValueChange={(v: string) => handleChange("cliente", v === "todos" ? "" : v)}
         >
-          <SelectTrigger id="cliente">
+          <SelectTrigger id="cliente" className={SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
           <SelectContent>
@@ -89,10 +95,11 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="nome">Nome do Projeto</Label>
+        <Label htmlFor="nome" className={LABEL_CLASS}>Nome do Projeto</Label>
         <Input 
           id="nome"
           type="text"
+          className={INPUT_CLASS}
           value={draft.nome}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("nome", e.target.value)}
           placeholder="Ex: UFV Primavera"
@@ -100,12 +107,12 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="uf">UF</Label>
+        <Label htmlFor="uf" className={LABEL_CLASS}>UF</Label>
         <Select 
           value={draft.uf || undefined} 
           onValueChange={(v: string) => handleChange("uf", v === "todas" ? "" : v)}
         >
-          <SelectTrigger id="uf">
+          <SelectTrigger id="uf" className={SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
@@ -118,10 +125,11 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="municipio">Município</Label>
+        <Label htmlFor="municipio" className={LABEL_CLASS}>Município</Label>
         <Input 
           id="municipio"
           type="text"
+          className={INPUT_CLASS}
           value={draft.municipio}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("municipio", e.target.value)}
           disabled={!draft.uf}
@@ -130,10 +138,11 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="ano">Ano de Vigência</Label>
+        <Label htmlFor="ano" className={LABEL_CLASS}>Ano de Vigência</Label>
         <Input 
           id="ano"
           type="number"
+          className={INPUT_CLASS}
           value={draft.ano}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("ano", e.target.value)}
           placeholder="Ex: 2024"
