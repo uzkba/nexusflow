@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 // Importando os nomes exatos que existem no seu arquivo
 import { useFiltros, Filtros } from "@/lib/useFiltros"; 
 // IMPORTANTE: Ajuste este caminho para o local correto do seu hook
-import { useFilterOptions } from "@/hooks/useFilterOptions"; 
+import { useFilterOptions } from "@/hooks/use-filter-options"; 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
