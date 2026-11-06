@@ -1,13 +1,15 @@
 // frontend/src/pages/PaginaGeolocalizacao.tsx
-import React, { useState } from 'react';
-import { useGeolocalizacao, FiltrosGeo } from '../hooks/use-geolocalizacao';
+import React from 'react';
+import { useGeolocalizacao } from '../hooks/use-geolocalizacao';
+import { useFilters } from '../hooks/use-filters';
 import { MapaGeo } from '../components/geolocalizacao/MapaGeo';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 export const PaginaGeolocalizacao: React.FC = () => {
-  const [filtros] = useState<FiltrosGeo>({});
-  
-  const { data, isLoading, isError, refetch } = useGeolocalizacao(filtros);
+  // Filtros APLICADOS da sidebar (guardados na URL). Mesma fonte usada pela Visão Geral.
+  const { filters } = useFilters();
+
+  const { data, isLoading, isError, refetch } = useGeolocalizacao(filters);
 
   if (isLoading) {
     return (
@@ -23,8 +25,8 @@ export const PaginaGeolocalizacao: React.FC = () => {
       <div className="flex h-[calc(100vh-100px)] w-full flex-col items-center justify-center space-y-4">
         <AlertCircle className="h-10 w-10 text-destructive" />
         <p className="text-destructive font-semibold">Falha ao carregar os dados de geolocalização.</p>
-        <button 
-          onClick={() => refetch()} 
+        <button
+          onClick={() => refetch()}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           Tentar Novamente
@@ -35,7 +37,7 @@ export const PaginaGeolocalizacao: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 w-full pb-8">
-      
+
       {/* Container do Mapa - Topo (Largura Total) */}
       <section className="w-full rounded-xl border bg-card p-5 text-card-foreground shadow-sm">
         <div className="mb-4">
@@ -58,7 +60,7 @@ export const PaginaGeolocalizacao: React.FC = () => {
             Municípios com maior volume de projetos
           </p>
         </div>
-        
+
         <div className="w-full overflow-x-auto">
           {/* Atualizado para verificar a length de "dados" */}
           {data?.dados?.length === 0 ? (
@@ -78,8 +80,8 @@ export const PaginaGeolocalizacao: React.FC = () => {
               <tbody className="[&_tr:last-child]:border-0">
                 {/* Atualizado para mapear sobre "dados" */}
                 {data?.dados?.map((item, index) => (
-                  <tr 
-                    key={`${item.municipio}-${item.uf}`} 
+                  <tr
+                    key={`${item.municipio}-${item.uf}`}
                     className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
                   >
                     <td className="p-4 align-middle">
@@ -97,7 +99,7 @@ export const PaginaGeolocalizacao: React.FC = () => {
           )}
         </div>
       </section>
-      
+
     </div>
   );
 };

@@ -14,16 +14,20 @@ export interface GeolocalizacaoResponse {
   dados: GeolocalizacaoItem[];
 }
 
-// Interface flexível para filtros globais
+// Filtros globais da sidebar: mesmos nomes do FiltrosQuery do backend
 export interface FiltrosGeo {
-  cliente_id?: string;
-  status_revisao?: string;
-  [key: string]: any; 
+  origem?: string;
+  cliente?: string;
+  nome?: string;
+  uf?: string;
+  municipio?: string;
+  ano?: string;
+  [key: string]: any;
 }
 
 const fetchGeolocalizacao = async (filtros: FiltrosGeo): Promise<GeolocalizacaoResponse> => {
   const params = new URLSearchParams();
-  
+
   Object.entries(filtros).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       params.append(key, String(value));
@@ -31,18 +35,18 @@ const fetchGeolocalizacao = async (filtros: FiltrosGeo): Promise<GeolocalizacaoR
   });
 
   const queryString = params.toString();
-  
+
   // URL corrigida sem crases aninhadas problemáticas
-  const url = queryString 
-    ? `/api/geolocalizacao?${queryString}` 
+  const url = queryString
+    ? `/api/geolocalizacao?${queryString}`
     : '/api/geolocalizacao';
 
   const response = await fetch(url);
-  
+
   if (!response.ok) {
     throw new Error('Erro ao buscar os dados de geolocalização');
   }
-  
+
   return response.json();
 };
 
