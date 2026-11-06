@@ -38,6 +38,16 @@ def normalizar_origem(valor: str | None) -> str | None:
     return _ORIGEM_CANONICA.get(chave, valor.strip())
 
 
+def padrao_contem(texto: str) -> str:
+    """
+    Padrão para ILIKE "contém": '%texto%', escapando \\, % e _ digitados pelo usuário
+    (senão '50%' ou 'UFV_1' casariam com mais do que o digitado).
+    Use com .ilike(padrao_contem(valor), escape="\\").
+    """
+    limpo = texto.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{limpo}%"
+
+
 class FiltrosQuery(BaseModel):
     origem: str | None = None
     cliente: UUID | None = None

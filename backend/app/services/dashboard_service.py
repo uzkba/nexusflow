@@ -15,7 +15,7 @@ from sqlalchemy.sql import Select
 from backend.app.core.constantes import SENTINELA_CLIENTE_ID
 from backend.app.enum import ReviewStatus
 from backend.app.model.models import Client, GenerationProject
-from backend.app.schemas.filtros_schema import FiltrosQuery
+from backend.app.schemas.filtros_schema import FiltrosQuery, padrao_contem
 
 # potencia_outorgada_kw vem em kW no banco; os endpoints expõem em MW.
 KW_PARA_MW = 1000
@@ -61,7 +61,10 @@ def _condicoes(filtros: FiltrosQuery | None = None) -> list:
     if filtros.cliente:
         condicoes.append(GenerationProject.cliente_id == filtros.cliente)
     if filtros.nome:
-        condicoes.append(GenerationProject.nome_projeto == filtros.nome)
+        # Busca parcial, sem diferenciar maiúsculas: "primavera" acha "UFV Primavera 1"
+        condicoes.append(
+            GenerationProject.nome_projeto.ilike(padrao_contem(filtros.nome), escape="\\")
+        )
     if filtros.uf:
         condicoes.append(GenerationProject.uf == filtros.uf)
     if filtros.municipio:
