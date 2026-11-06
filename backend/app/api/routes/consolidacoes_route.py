@@ -10,14 +10,16 @@ aprovar/rejeitar precisam do id do usuário para preencher decidido_por.
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_db
 from backend.app.core.auth_dependencies import get_current_user
 from backend.app.schemas.consolidacoes_schema import ConsolidacaoAcaoOut, ConsolidacaoPendenteOut
+from backend.app.schemas.filtros_schema import FiltrosQuery
 from backend.app.services import consolidacoes_service
 
 router = APIRouter(
@@ -29,9 +31,11 @@ router = APIRouter(
 
 @router.get("/pendentes", response_model=list[ConsolidacaoPendenteOut])
 async def listar_pendentes(
+    filtros: Annotated[FiltrosQuery, Query()],
     db: AsyncSession = Depends(get_db),
 ) -> list[ConsolidacaoPendenteOut]:
-    itens = await consolidacoes_service.listar_pendentes(db)
+    """Lista as pendências. Aceita os filtros da sidebar (origem, cliente, nome, uf, municipio, ano)."""
+    itens = await consolidacoes_service.listar_pendentes(db, filtros)
     return [ConsolidacaoPendenteOut.model_validate(i) for i in itens]
 
 

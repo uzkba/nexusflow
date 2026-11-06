@@ -1,9 +1,12 @@
 import React from 'react';
 import { usePendencias } from '../hooks/use-pendencias';
+import { useFilters } from '../hooks/use-filters';
 import { PendenciaCard } from './PendenciaCard';
 
 export const PainelPendencias: React.FC = () => {
-  const { data: pendencias, isLoading, isError } = usePendencias();
+  // Filtros APLICADOS da sidebar (guardados na URL): mesma fonte das outras abas
+  const { filters, activeCount } = useFilters();
+  const { data: pendencias, isLoading, isError } = usePendencias(filters);
 
   if (isLoading) {
     return (
@@ -24,7 +27,9 @@ export const PainelPendencias: React.FC = () => {
   if (!pendencias || pendencias.length === 0) {
     return (
       <div className="p-8 text-center bg-gray-50 border border-dashed rounded-lg text-gray-500">
-        Nenhuma pendência na fila de revisão no momento.
+        {activeCount > 0
+          ? 'Nenhuma pendência encontrada com os filtros atuais.'
+          : 'Nenhuma pendência na fila de revisão no momento.'}
       </div>
     );
   }
@@ -34,6 +39,10 @@ export const PainelPendencias: React.FC = () => {
       <div className="mb-6">
         <h2 className="text-2xl font-bold tracking-tight text-gray-900">Revisão de Pendências</h2>
         <p className="text-gray-500">Avalie solicitações de consolidação e alterações de declarações.</p>
+        <p className="mt-1 text-sm text-gray-500">
+          {pendencias.length} {pendencias.length === 1 ? 'pendência' : 'pendências'}
+          {activeCount > 0 ? ' (filtradas)' : ''}
+        </p>
       </div>
 
       <div className="space-y-4">

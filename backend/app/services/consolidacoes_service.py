@@ -22,6 +22,9 @@ from backend.app.model.models import PendingConsolidation, RawName, GenerationPr
 from backend.app.enum import ConsolidationStatus
 from backend.app.enum.projeto_geracao import ReviewStatus
 from backend.app.enum.consolidacao import MotivoPendenciaEnum
+from backend.app.schemas.filtros_schema import FiltrosQuery
+# Mesmas condições de filtro da sidebar usadas na Visão Geral (regra em um só lugar)
+from backend.app.services.dashboard_service import _condicoes as condicoes_filtros
 
 
 def _sem_diff_tecnico():
@@ -39,10 +42,16 @@ def _sem_diff_tecnico():
     )
 
 
-async def listar_pendentes(db: AsyncSession) -> list[dict]:
+async def listar_pendentes(
+    db: AsyncSession, filtros: FiltrosQuery | None = None
+) -> list[dict]:
     """
     Retorna todas as pendências enriquecidas com agregados (UFs, municípios, 
     total de projetos, potência total) e os nomes de domínio.
+
+    Com `filtros` (sidebar), só entram as pendências que têm ao menos um projeto
+    ligado que atenda aos filtros. Os agregados do card continuam somando TODOS os
+    projetos da pendência, porque aprovar uma consolidação afeta todos eles.
     """
     stmt = (
         select(
@@ -64,6 +73,36 @@ async def listar_pendentes(db: AsyncSession) -> list[dict]:
         )
         .where(PendingConsolidation.status == ConsolidationStatus.pendente)
     )
+
+    if filtros is not None:
+        # Projeto ligado à pendência: por nome (consolidação) ou por CEG (alteração)
+        projeto_da_pendencia = or_(
+            GenerationProject.nome_bruto_principal_id == PendingConsolidation.nome_bruto_id,
+            GenerationProject.ceg == PendingConsolidation.ceg,
+        )
+
+        # Filtros de projeto (origem, nome, uf, município, ano). O cliente é tratado abaixo.
+        condicoes = condicoes_filtros(filtros.model_copy(update={"cliente": None}))
+        if condicoes:
+            stmt = stmt.where(
+                select(GenerationProject.ceg)
+                .where(projeto_da_pendencia, *condicoes)
+                .correlate(PendingConsolidation)
+                .exists()
+            )
+
+        # Cliente: casa com o cliente SUGERIDO (consolidação de nome, em que os projetos
+        # ainda não têm cliente) ou com o cliente já vinculado aos projetos (alteração de dado)
+        if filtros.cliente:
+            stmt = stmt.where(
+                or_(
+                    PendingConsolidation.cliente_sugerido_id == filtros.cliente,
+                    select(GenerationProject.ceg)
+                    .where(projeto_da_pendencia, GenerationProject.cliente_id == filtros.cliente)
+                    .correlate(PendingConsolidation)
+                    .exists(),
+                )
+            )
 
     resultado = await db.execute(stmt)
     linhas = resultado.all()
