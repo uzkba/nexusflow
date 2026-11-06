@@ -243,7 +243,8 @@ async def rejeitar_pendencia(
     db: AsyncSession, item_id: int, usuario_id: UUID
 ) -> PendingConsolidation:
     """
-    Rejeita a pendência. Para consolidacao_nome, cria um cliente isolado.
+    Rejeita a pendência. Para consolidacao_nome, cria um cliente isolado e marca os
+    projetos como status_revisao='rejeitado' (visível na Base de Dados).
     Para alteracao_dado, mantém o diff_pendente para auditoria.
     """
     item = await _buscar_pendencia(db, item_id)
@@ -270,11 +271,12 @@ async def rejeitar_pendencia(
         ).values(cliente_id=novo_cliente.id)
         await db.execute(stmt_projetos)
 
-        # 3. Remover status 'pendente' apenas dos projetos que NÃO têm diff técnico
+        # 3. Marcar como 'rejeitado' os projetos que NÃO têm diff técnico (os que têm diff
+        #    continuam pendentes, aguardando a revisão do dado técnico)
         stmt_status = update(GenerationProject).where(
             GenerationProject.nome_bruto_principal_id == item.nome_bruto_id,
             _sem_diff_tecnico(),
-        ).values(status_revisao=ReviewStatus.aprovado)
+        ).values(status_revisao=ReviewStatus.rejeitado)
         await db.execute(stmt_status)
 
     # Se for alteracao_dado, não limpamos o diff_pendente (auditoria) e nem
