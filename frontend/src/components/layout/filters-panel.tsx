@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useFiltros, Filtros } from "@/lib/useFiltros"; 
-import { useFilterOptions } from "@/lib/useFilterOptions"; 
+import { useFilterOptions } from "@/hooks/useFilterOptions"; 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
