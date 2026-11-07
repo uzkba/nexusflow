@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select, true, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,3 +109,81 @@ async def get_geolocalizacao(
         total_municipios=len(dados),
         dados=dados
     )
+
+
+class ProjetoDoMunicipio(BaseModel):
+    ceg: str
+    nome_projeto: str | None = None
+    origem: str | None = None
+    fase: str | None = None
+    potencia_outorgada_kw: float | None = None
+
+
+class ProjetosDoMunicipioResponse(BaseModel):
+    municipio: str
+    total: int
+    dados: list[ProjetoDoMunicipio]
+
+
+# Segurança: nenhum município hoje passa de ~100 projetos; o teto evita respostas enormes.
+LIMITE_PROJETOS_POR_MUNICIPIO = 500
+
+
+@router.get(
+    "/geolocalizacao/projetos",
+    response_model=ProjetosDoMunicipioResponse,
+    summary="Projetos de um município (detalhe do Ranking de Municípios)",
+    description=(
+        "Lista os projetos que compõem a contagem de um município no ranking. "
+        "Informe `municipio` (texto exato do ranking, ex.: 'Bom Jesus da Lapa - BA') e, "
+        "opcionalmente, `uf` e os demais filtros da sidebar. Usa as mesmas regras do ranking "
+        "(projetos sem coordenadas são ignorados), então a quantidade bate com a da tabela."
+    ),
+)
+async def get_projetos_do_municipio(
+    filtros: Annotated[FiltrosQuery, Query()],
+    db: AsyncSession = Depends(get_db),
+) -> ProjetosDoMunicipioResponse:
+    if not filtros.municipio:
+        raise HTTPException(status_code=422, detail="Informe o município")
+
+    stmt = (
+        select(
+            GenerationProject.ceg,
+            GenerationProject.nome_projeto,
+            GenerationProject.origem,
+            GenerationProject.fase,
+            GenerationProject.potencia_outorgada_kw,
+        )
+        .where(
+            GenerationProject.uf.isnot(None),
+            GenerationProject.municipios.isnot(None),
+            func.jsonb_typeof(GenerationProject.municipios) == "array",
+            # Mesmas regras do ranking, para a contagem bater
+            GenerationProject.latitude.isnot(None),
+            GenerationProject.longitude.isnot(None),
+            # Filtros da sidebar, incluindo uf e município (contido na lista de municípios)
+            *condicoes_filtros(filtros),
+        )
+        .order_by(
+            desc(GenerationProject.potencia_outorgada_kw).nulls_last(),
+            GenerationProject.nome_projeto.asc(),
+            GenerationProject.ceg.asc(),
+        )
+        .limit(LIMITE_PROJETOS_POR_MUNICIPIO)
+    )
+
+    linhas = (await db.execute(stmt)).all()
+    dados = [
+        ProjetoDoMunicipio(
+            ceg=r.ceg,
+            nome_projeto=r.nome_projeto,
+            origem=r.origem,
+            fase=r.fase,
+            potencia_outorgada_kw=float(r.potencia_outorgada_kw)
+            if r.potencia_outorgada_kw is not None
+            else None,
+        )
+        for r in linhas
+    ]
+    return ProjetosDoMunicipioResponse(municipio=filtros.municipio, total=len(dados), dados=dados)
