@@ -61,8 +61,8 @@ export function FiltersPanel() {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="origem" className={LABEL_CLASS}>Origem</Label>
+        {/* Correção: Força o Select visualmente para "todas" se o rascunho for vazio */}
         <Select 
-          {/* Correção: Força o Select visualmente para "todas" se o rascunho for vazio */}
           value={draft.origem || "todas"} 
           onValueChange={(v: string) => handleChange("origem", v === "todas" ? "" : v)}
         >
@@ -106,8 +106,8 @@ export function FiltersPanel() {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="uf" className={LABEL_CLASS}>UF</Label>
+        {/* Correção: Força o Select visualmente para "todas" se o rascunho for vazio */}
         <Select 
-          {/* Correção: Força o Select visualmente para "todas" se o rascunho for vazio */}
           value={draft.uf || "todas"} 
           onValueChange={(v: string) => handleChange("uf", v === "todas" ? "" : v)}
         >
