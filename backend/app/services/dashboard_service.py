@@ -8,7 +8,7 @@ endpoint.
 from decimal import Decimal
 from typing import List
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
@@ -75,8 +75,12 @@ def _condicoes(filtros: FiltrosQuery | None = None) -> list:
     if filtros.uf:
         condicoes.append(GenerationProject.uf == filtros.uf)
     if filtros.municipio:
-        # municipios é JSONB list[str]: contenção (@>), não igualdade
-        condicoes.append(GenerationProject.municipios.contains([filtros.municipio]))
+        # Converte a lista JSONB para texto e faz a busca parcial ignorando maiúsculas/minúsculas
+        condicoes.append(
+            cast(GenerationProject.municipios, String).ilike(
+                padrao_contem(filtros.municipio), escape="\\"
+            )
+        )
     if filtros.ano:
         condicoes.append(GenerationProject.inicio_vigencia_ano == filtros.ano)
     return condicoes
