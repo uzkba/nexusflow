@@ -114,7 +114,8 @@ export function FiltersPanel() {
           <SelectTrigger id="uf" className={SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
-          <SelectContent className="max-h-64">
+          {/* AQUI ESTÁ A CORREÇÃO: overflow-y-auto adicionado */}
+          <SelectContent className="max-h-64 overflow-y-auto">
             <SelectItem value="todas">Todas</SelectItem>
             {ufs.map((estado) => (
               <SelectItem key={estado.value} value={estado.value}>
