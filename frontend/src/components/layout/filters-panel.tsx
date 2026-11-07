@@ -51,11 +51,13 @@ export function FiltersPanel() {
   return (
     <div className="flex flex-col gap-5 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-sidebar-foreground">Filtros</h3>
+        {/* Alterado para text-white */}
+        <h3 className="text-sm font-semibold text-white">Filtros</h3>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="origem">Origem</Label>
+        {/* Adicionado className="text-white" em todas as Labels */}
+        <Label htmlFor="origem" className="text-white">Origem</Label>
         <Select 
           value={draft.origem || undefined} 
           onValueChange={(v: string) => handleChange("origem", v === "todas" ? "" : v)}
@@ -74,9 +76,8 @@ export function FiltersPanel() {
         </Select>
       </div>
 
-      {/* AQUI ESTÁ A ALTERAÇÃO: Cliente agora é um Input de texto */}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="cliente">Cliente</Label>
+        <Label htmlFor="cliente" className="text-white">Cliente</Label>
         <Input 
           id="cliente"
           type="text"
@@ -87,7 +88,7 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="nome">Nome do Projeto</Label>
+        <Label htmlFor="nome" className="text-white">Nome do Projeto</Label>
         <Input 
           id="nome"
           type="text"
@@ -98,7 +99,7 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="uf">UF</Label>
+        <Label htmlFor="uf" className="text-white">UF</Label>
         <Select 
           value={draft.uf || undefined} 
           onValueChange={(v: string) => handleChange("uf", v === "todas" ? "" : v)}
@@ -118,7 +119,7 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="municipio">Município</Label>
+        <Label htmlFor="municipio" className="text-white">Município</Label>
         <Input 
           id="municipio"
           type="text"
@@ -130,7 +131,7 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="ano">Ano de Vigência</Label>
+        <Label htmlFor="ano" className="text-white">Ano de Vigência</Label>
         <Input 
           id="ano"
           type="number"
@@ -142,12 +143,3 @@ export function FiltersPanel() {
 
       <div className="mt-4 flex flex-col gap-2">
         <Button onClick={handleApply} className="w-full bg-brand text-white hover:bg-brand/90">
-          Aplicar Filtros {draftActiveCount > 0 && `(${draftActiveCount})`}
-        </Button>
-        <Button onClick={handleClear} variant="outline" className="w-full">
-          Limpar Filtros
-        </Button>
-      </div>
-    </div>
-  );
-}
