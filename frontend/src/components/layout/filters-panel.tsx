@@ -51,12 +51,10 @@ export function FiltersPanel() {
   return (
     <div className="flex flex-col gap-5 p-4">
       <div className="flex items-center justify-between">
-        {/* Alterado para text-white */}
         <h3 className="text-sm font-semibold text-white">Filtros</h3>
       </div>
 
       <div className="flex flex-col gap-2">
-        {/* Adicionado className="text-white" em todas as Labels */}
         <Label htmlFor="origem" className="text-white">Origem</Label>
         <Select 
           value={draft.origem || undefined} 
@@ -143,3 +141,12 @@ export function FiltersPanel() {
 
       <div className="mt-4 flex flex-col gap-2">
         <Button onClick={handleApply} className="w-full bg-brand text-white hover:bg-brand/90">
+          {draftActiveCount > 0 ? `Aplicar Filtros (${draftActiveCount})` : "Aplicar Filtros"}
+        </Button>
+        <Button onClick={handleClear} variant="outline" className="w-full">
+          Limpar Filtros
+        </Button>
+      </div>
+    </div>
+  );
+}
