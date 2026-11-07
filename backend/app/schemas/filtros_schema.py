@@ -50,7 +50,7 @@ def padrao_contem(texto: str) -> str:
 
 class FiltrosQuery(BaseModel):
     origem: str | None = None
-    cliente: UUID | None = None
+    cliente: str | None = None
     nome: str | None = None
     uf: str | None = Field(default=None, min_length=2, max_length=2)
     municipio: str | None = None

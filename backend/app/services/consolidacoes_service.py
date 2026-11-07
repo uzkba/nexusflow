@@ -15,14 +15,15 @@ from uuid import UUID
 
 from fastapi import HTTPException, status as http_status
 from sqlalchemy import func, or_, select, update, text
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.model.models import PendingConsolidation, RawName, GenerationProject, Client
 from backend.app.enum import ConsolidationStatus
 from backend.app.enum.projeto_geracao import ReviewStatus
 from backend.app.enum.consolidacao import MotivoPendenciaEnum
-from backend.app.schemas.filtros_schema import FiltrosQuery
+# Importamos padrao_contem para usar no ilike
+from backend.app.schemas.filtros_schema import FiltrosQuery, padrao_contem
 # Mesmas condições de filtro da sidebar usadas na Visão Geral (regra em um só lugar)
 from backend.app.services.dashboard_service import _condicoes as condicoes_filtros
 
@@ -100,14 +101,22 @@ async def _listar(
                 .exists()
             )
 
-        # Cliente: casa com o cliente SUGERIDO (consolidação de nome, em que os projetos
-        # ainda não têm cliente) ou com o cliente já vinculado aos projetos (alteração de dado)
+        # Cliente: busca textual no nome oficial da empresa (ilike)
         if filtros.cliente:
+            # Usamos um alias para a tabela Client da subquery para não conflitar com o outerjoin principal
+            ProjectClient = aliased(Client)
+            
             stmt = stmt.where(
                 or_(
-                    PendingConsolidation.cliente_sugerido_id == filtros.cliente,
+                    # 1. Busca no cliente sugerido (já integrado no outerjoin acima)
+                    Client.nome_oficial.ilike(padrao_contem(filtros.cliente), escape="\\"),
+                    # 2. Busca no cliente associado aos projetos da pendência
                     select(GenerationProject.ceg)
-                    .where(projeto_da_pendencia, GenerationProject.cliente_id == filtros.cliente)
+                    .join(ProjectClient, GenerationProject.cliente_id == ProjectClient.id)
+                    .where(
+                        projeto_da_pendencia, 
+                        ProjectClient.nome_oficial.ilike(padrao_contem(filtros.cliente), escape="\\")
+                    )
                     .correlate(PendingConsolidation)
                     .exists(),
                 )
