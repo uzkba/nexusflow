@@ -14,6 +14,29 @@ const formatarKw = (kw?: number | null) =>
     ? '—'
     : `${kw.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kW`;
 
+const formatarMW = (kw?: number | null) =>
+  kw === null || kw === undefined
+    ? ''
+    : `${(kw / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} MW`;
+
+const classeStatus = (status?: string | null) => {
+  if (status === 'aprovado') return 'bg-green-100 text-green-800';
+  if (status === 'rejeitado') return 'bg-red-100 text-red-800';
+  return 'bg-amber-100 text-amber-800';
+};
+
+// Um par "rótulo / valor" do cartão de detalhes do projeto
+const Campo: React.FC<{ rotulo: string; className?: string; children: React.ReactNode }> = ({
+  rotulo,
+  className = '',
+  children,
+}) => (
+  <div className={`min-w-0 ${className}`}>
+    <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{rotulo}</dt>
+    <dd className="truncate text-sm font-medium">{children}</dd>
+  </div>
+);
+
 const classeOrigem = (origem?: string | null) => {
   if (origem === 'Solar') return 'bg-amber-100 text-amber-800';
   if (origem === 'Eólica') return 'bg-sky-100 text-sky-800';
@@ -64,26 +87,50 @@ const ProjetosDoMunicipio: React.FC<{ filtros: FiltrosGeo; uf: string; municipio
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {projetos.length} {projetos.length === 1 ? 'projeto' : 'projetos'}
       </p>
-      <ul className="grid gap-2 sm:grid-cols-2">
+      <ul className="grid gap-3 lg:grid-cols-2">
         {projetos.map((p) => (
-          <li
-            key={p.ceg}
-            className="flex items-start justify-between gap-3 rounded-md border bg-card px-3 py-2"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium" title={p.nome_projeto ?? p.ceg}>
-                {p.nome_projeto ?? 'Projeto sem nome'}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">{p.ceg}</p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              {p.origem && (
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${classeOrigem(p.origem)}`}>
-                  {p.origem}
+          <li key={p.ceg} className="rounded-md border bg-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold" title={p.nome_projeto ?? p.ceg}>
+                  {p.nome_projeto ?? 'Projeto sem nome'}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{p.ceg}</p>
+              </div>
+              {p.status_revisao && (
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${classeStatus(p.status_revisao)}`}
+                >
+                  {p.status_revisao}
                 </span>
               )}
-              <span className="text-xs text-muted-foreground">{formatarKw(p.potencia_outorgada_kw)}</span>
             </div>
+
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+              <Campo rotulo="Tipo">
+                {p.origem ? (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${classeOrigem(p.origem)}`}>
+                    {p.origem}
+                  </span>
+                ) : (
+                  '—'
+                )}
+              </Campo>
+              <Campo rotulo="Potência">
+                {formatarKw(p.potencia_outorgada_kw)}
+                {p.potencia_outorgada_kw !== null && (
+                  <span className="font-normal text-muted-foreground"> · {formatarMW(p.potencia_outorgada_kw)}</span>
+                )}
+              </Campo>
+              <Campo rotulo="Fase">{p.fase ?? '—'}</Campo>
+              <Campo rotulo="Início da vigência">{p.inicio_vigencia_ano ?? '—'}</Campo>
+              <Campo rotulo="Proprietário" className="col-span-2">
+                <span title={p.proprietario ?? undefined}>{p.proprietario ?? '—'}</span>
+              </Campo>
+              <Campo rotulo="Cliente" className="col-span-2">
+                {p.cliente_nome ?? <span className="font-normal text-muted-foreground">Ainda não consolidado</span>}
+              </Campo>
+            </dl>
           </li>
         ))}
       </ul>

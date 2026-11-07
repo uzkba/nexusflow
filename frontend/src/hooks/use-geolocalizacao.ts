@@ -21,6 +21,10 @@ export interface ProjetoDoMunicipio {
   origem: string | null;
   fase: string | null;
   potencia_outorgada_kw: number | null;
+  inicio_vigencia_ano: number | null;
+  status_revisao: string | null;
+  proprietario: string | null;
+  cliente_nome: string | null;
 }
 
 export interface ProjetosDoMunicipioResponse {

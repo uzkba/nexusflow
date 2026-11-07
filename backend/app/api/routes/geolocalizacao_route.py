@@ -6,7 +6,7 @@ from sqlalchemy import func, select, true, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_db
-from backend.app.model.models import GenerationProject
+from backend.app.model.models import Client, GenerationProject, RawName
 
 # Importando o teu schema unificado
 from backend.app.schemas.geolocalizacao_schema import (
@@ -114,9 +114,15 @@ async def get_geolocalizacao(
 class ProjetoDoMunicipio(BaseModel):
     ceg: str
     nome_projeto: str | None = None
-    origem: str | None = None
+    origem: str | None = None  # tipo: 'Solar' ou 'Eólica'
     fase: str | None = None
     potencia_outorgada_kw: float | None = None
+    inicio_vigencia_ano: int | None = None
+    status_revisao: str | None = None
+    # Proprietário como veio da ANEEL (nome bruto principal do projeto)
+    proprietario: str | None = None
+    # Cliente consolidado (vazio até o admin aprovar a consolidação)
+    cliente_nome: str | None = None
 
 
 class ProjetosDoMunicipioResponse(BaseModel):
@@ -154,7 +160,14 @@ async def get_projetos_do_municipio(
             GenerationProject.origem,
             GenerationProject.fase,
             GenerationProject.potencia_outorgada_kw,
+            GenerationProject.inicio_vigencia_ano,
+            GenerationProject.status_revisao,
+            RawName.nome_bruto.label("proprietario"),
+            Client.nome_oficial.label("cliente_nome"),
         )
+        .select_from(GenerationProject)
+        .outerjoin(RawName, RawName.id == GenerationProject.nome_bruto_principal_id)
+        .outerjoin(Client, Client.id == GenerationProject.cliente_id)
         .where(
             GenerationProject.uf.isnot(None),
             GenerationProject.municipios.isnot(None),
@@ -183,6 +196,10 @@ async def get_projetos_do_municipio(
             potencia_outorgada_kw=float(r.potencia_outorgada_kw)
             if r.potencia_outorgada_kw is not None
             else None,
+            inicio_vigencia_ano=r.inicio_vigencia_ano,
+            status_revisao=r.status_revisao.value if r.status_revisao is not None else None,
+            proprietario=r.proprietario,
+            cliente_nome=r.cliente_nome,
         )
         for r in linhas
     ]
