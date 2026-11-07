@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-// Importando os nomes exatos que existem no seu arquivo
 import { useFiltros, Filtros } from "@/lib/useFiltros"; 
+import { useFilterOptions } from "@/lib/useFilterOptions"; 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,17 +13,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Criando os auxiliares localmente já que seu arquivo useFiltros não os exporta
 const VAZIOS: Filtros = { origem: "", cliente: "", nome: "", uf: "", municipio: "", ano: "" };
 
 const countActive = (f: Filtros) => 
   Object.values(f).filter((val) => val !== "").length;
 
 export function FiltersPanel() {
-  // Pegando as funções e estados com os nomes exatos do seu hook
   const { filtros, setFiltros, limpar } = useFiltros();
   
   const [draft, setDraft] = useState<Filtros>(filtros);
+
+  const { ufs, origens } = useFilterOptions(draft.uf);
 
   useEffect(() => {
     setDraft(filtros);
@@ -32,7 +32,6 @@ export function FiltersPanel() {
   const handleChange = (key: keyof Filtros, value: string) => {
     setDraft((prev: Filtros) => {
       const next = { ...prev, [key]: value };
-      // Regra de negócio: trocar a UF zera o município
       if (key === "uf") {
         next.municipio = "";
       }
@@ -66,26 +65,25 @@ export function FiltersPanel() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas</SelectItem>
-            <SelectItem value="solar">Solar</SelectItem>
-            <SelectItem value="eolica">Eólica</SelectItem>
+            {origens.map((origem) => (
+              <SelectItem key={origem.value} value={origem.value}>
+                {origem.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
+      {/* AQUI ESTÁ A ALTERAÇÃO: Cliente agora é um Input de texto */}
       <div className="flex flex-col gap-2">
         <Label htmlFor="cliente">Cliente</Label>
-        <Select 
-          value={draft.cliente || undefined} 
-          onValueChange={(v: string) => handleChange("cliente", v === "todos" ? "" : v)}
-        >
-          <SelectTrigger id="cliente">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            {/* Aqui você mapeará os clientes da API no futuro */}
-          </SelectContent>
-        </Select>
+        <Input 
+          id="cliente"
+          type="text"
+          value={draft.cliente}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("cliente", e.target.value)}
+          placeholder="Ex: Empresa de Energia SA"
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -108,11 +106,13 @@ export function FiltersPanel() {
           <SelectTrigger id="uf">
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-64">
             <SelectItem value="todas">Todas</SelectItem>
-            <SelectItem value="MG">Minas Gerais (MG)</SelectItem>
-            <SelectItem value="BA">Bahia (BA)</SelectItem>
-            <SelectItem value="CE">Ceará (CE)</SelectItem>
+            {ufs.map((estado) => (
+              <SelectItem key={estado.value} value={estado.value}>
+                {estado.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
