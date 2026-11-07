@@ -58,8 +58,15 @@ def _condicoes(filtros: FiltrosQuery | None = None) -> list:
 
     if filtros.origem:
         condicoes.append(GenerationProject.origem == filtros.origem)
+    
     if filtros.cliente:
-        condicoes.append(GenerationProject.cliente_id == filtros.cliente)
+        # Como _condicoes é usada por endpoints que não fazem JOIN com Client,
+        # usamos uma subquery para buscar os IDs dos clientes que batem com o texto digitado.
+        subquery_clientes = select(Client.id).where(
+            Client.nome_oficial.ilike(padrao_contem(filtros.cliente), escape="\\")
+        )
+        condicoes.append(GenerationProject.cliente_id.in_(subquery_clientes))
+        
     if filtros.nome:
         # Busca parcial, sem diferenciar maiúsculas: "primavera" acha "UFV Primavera 1"
         condicoes.append(
