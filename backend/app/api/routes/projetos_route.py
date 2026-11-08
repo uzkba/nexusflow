@@ -21,6 +21,11 @@ async def listar_projetos(
     status: Annotated[str | None, Query(description="Filtra pela fase do projeto, ex: Operação, Construção")] = None,
     origem: Annotated[str | None, Query(description="Filtra pela origem do dado/projeto")] = None,
     search: Annotated[str | None, Query(description="Busca parcial (case-insensitive) no nome do projeto")] = None,
+    # Filtros da sidebar (mesmos nomes do FiltrosQuery). Vazio = sem filtro.
+    nome: Annotated[str | None, Query(description="Busca parcial (case-insensitive) no nome do projeto")] = None,
+    cliente: Annotated[str | None, Query(description="UUID do cliente")] = None,
+    municipio: Annotated[str | None, Query(description="Município (contido na lista de municípios do projeto)")] = None,
+    ano: Annotated[str | None, Query(description="Ano de início de vigência")] = None,
     sort_by: Annotated[str, Query(description="Coluna base para ordenação")] = "criado_em",
     sort_desc: Annotated[bool, Query(description="Ordenação decrescente?")] = True,
 ) -> PaginatedResponse[ProjetoOut]:
@@ -36,7 +41,11 @@ async def listar_projetos(
         origem=origem,
         search=search,
         sort_by=sort_by,
-        sort_desc=sort_desc
+        sort_desc=sort_desc,
+        nome=nome,
+        cliente=cliente,
+        municipio=municipio,
+        ano=ano,
     )
 
     pages = math.ceil(total / size) if total else 0

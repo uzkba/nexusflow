@@ -12,12 +12,13 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react-router-dom'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom'],
+     include: ['react', 'react-dom', 'react-router-dom'],
   },
   server: {
     host: true,        // Permite acesso de fora do contêiner Docker
     port: 5173,        // Força o Vite a rodar exatamente nesta porta
     strictPort: true,  // Derruba o servidor se a 5173 estiver ocupada, em vez de pular para 5174
+    allowedHosts: ['nexusflow.nexustree.com.br'],
     proxy: {
       '/api': {
         target: 'http://backend:8000', 

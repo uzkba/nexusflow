@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useFiltros, Filtros } from "@/lib/useFiltros"; 
-import { useFilterOptions } from "@/lib/useFilterOptions"; 
+import { useFilterOptions } from "@/hooks/use-filter-options"; 
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,11 @@ const VAZIOS: Filtros = { origem: "", cliente: "", nome: "", uf: "", municipio: 
 
 const countActive = (f: Filtros) => 
   Object.values(f).filter((val) => val !== "").length;
+
+// Variáveis de cor restauradas para deixar fontes e placeholders brancos
+const LABEL_CLASS = "text-white";
+const SELECT_TRIGGER_CLASS = "text-white data-[placeholder]:text-white/70";
+const INPUT_CLASS = "text-white placeholder:text-white/60 disabled:text-white/50";
 
 export function FiltersPanel() {
   const { filtros, setFiltros, limpar } = useFiltros();
@@ -51,16 +56,17 @@ export function FiltersPanel() {
   return (
     <div className="flex flex-col gap-5 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-sidebar-foreground">Filtros</h3>
+        <h3 className="text-sm font-semibold text-white">Filtros</h3>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="origem">Origem</Label>
+        <Label htmlFor="origem" className={LABEL_CLASS}>Origem</Label>
+        {/* Correção: Força o Select visualmente para "todas" se o rascunho for vazio */}
         <Select 
-          value={draft.origem || undefined} 
+          value={draft.origem || "todas"} 
           onValueChange={(v: string) => handleChange("origem", v === "todas" ? "" : v)}
         >
-          <SelectTrigger id="origem">
+          <SelectTrigger id="origem" className={SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
@@ -76,10 +82,11 @@ export function FiltersPanel() {
 
       {/* AQUI ESTÁ A ALTERAÇÃO: Cliente agora é um Input de texto */}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="cliente">Cliente</Label>
+        <Label htmlFor="cliente" className={LABEL_CLASS}>Cliente</Label>
         <Input 
           id="cliente"
           type="text"
+          className={INPUT_CLASS}
           value={draft.cliente}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("cliente", e.target.value)}
           placeholder="Ex: Empresa de Energia SA"
@@ -87,10 +94,11 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="nome">Nome do Projeto</Label>
+        <Label htmlFor="nome" className={LABEL_CLASS}>Nome do Projeto</Label>
         <Input 
           id="nome"
           type="text"
+          className={INPUT_CLASS}
           value={draft.nome}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("nome", e.target.value)}
           placeholder="Ex: UFV Primavera"
@@ -98,15 +106,17 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="uf">UF</Label>
+        <Label htmlFor="uf" className={LABEL_CLASS}>UF</Label>
+        {/* Correção: Força o Select visualmente para "todas" se o rascunho for vazio */}
         <Select 
-          value={draft.uf || undefined} 
+          value={draft.uf || "todas"} 
           onValueChange={(v: string) => handleChange("uf", v === "todas" ? "" : v)}
         >
-          <SelectTrigger id="uf">
+          <SelectTrigger id="uf" className={SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
-          <SelectContent className="max-h-64">
+          {/* AQUI ESTÁ A CORREÇÃO: overflow-y-auto adicionado */}
+          <SelectContent className="max-h-64 overflow-y-auto">
             <SelectItem value="todas">Todas</SelectItem>
             {ufs.map((estado) => (
               <SelectItem key={estado.value} value={estado.value}>
@@ -118,10 +128,11 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="municipio">Município</Label>
+        <Label htmlFor="municipio" className={LABEL_CLASS}>Município</Label>
         <Input 
           id="municipio"
           type="text"
+          className={INPUT_CLASS}
           value={draft.municipio}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("municipio", e.target.value)}
           disabled={!draft.uf}
@@ -130,10 +141,11 @@ export function FiltersPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="ano">Ano de Vigência</Label>
+        <Label htmlFor="ano" className={LABEL_CLASS}>Ano de Vigência</Label>
         <Input 
           id="ano"
           type="number"
+          className={INPUT_CLASS}
           value={draft.ano}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("ano", e.target.value)}
           placeholder="Ex: 2024"
@@ -142,7 +154,7 @@ export function FiltersPanel() {
 
       <div className="mt-4 flex flex-col gap-2">
         <Button onClick={handleApply} className="w-full bg-brand text-white hover:bg-brand/90">
-          Aplicar Filtros {draftActiveCount > 0 && `(${draftActiveCount})`}
+          {draftActiveCount > 0 ? `Aplicar Filtros (${draftActiveCount})` : "Aplicar Filtros"}
         </Button>
         <Button onClick={handleClear} variant="outline" className="w-full">
           Limpar Filtros

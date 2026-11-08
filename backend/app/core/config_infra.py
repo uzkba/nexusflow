@@ -1,32 +1,29 @@
 """
-Configuração de infraestrutura: dependências obrigatórias do processo
-(banco de dados). Ausência aqui derruba o boot — falha rápido, na
-importação do módulo.
+Infrastructure configuration: mandatory process dependencies (database).
+Absence here crashes the boot — fails fast on module import.
 
-NÃO importar este módulo em código que não depende de infraestrutura
-(ex: lógica pura como matching/similaridade.py). Foi exatamente esse
-acoplamento que fez testes de fuzz matching exigirem DATABASE_URL/Docker
-pra rodar, sem nenhum motivo real.
+DO NOT import this module in code that does not depend on infrastructure
+(e.g., pure logic like matching/similarity.py). It was exactly this
+coupling that caused fuzz matching tests to require DATABASE_URL/Docker
+to run, for no real reason.
 """
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def _obter_database_url() -> str:
-    valor = os.getenv("DATABASE_URL")
-    if not valor:
-        raise RuntimeError(
-            "DATABASE_URL nao definida. Confira se o .env existe (copiado do "
-            ".env.example) e se load_dotenv() esta encontrando o arquivo a "
-            "partir do diretorio de onde o processo foi iniciado."
-        )
-    return valor
+class InfraSettings(BaseSettings):
+    # Database connection string (Required: Pydantic will fail fast if missing)
+    DATABASE_URL: str
 
+    # ETL Cron Settings (Defaults to 02:00 AM)
+    ETL_CRON_HOUR: str = "2"
+    ETL_CRON_MINUTE: str = "0"
+    
+    # Paths
+    RAW_DATA_DIR: Path = Path("/tmp/nexusflow/raw")
 
-class InfraSettings:
-    DATABASE_URL: str = _obter_database_url()
+    # Load variables from the .env file and ignore any extra variables
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 infra_settings = InfraSettings()

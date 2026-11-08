@@ -1,64 +1,86 @@
 """
 Camada de acesso a dados dos endpoints analíticos (KPIs e Gráficos).
 
-Centraliza a query "base" usada pelos três endpoints para garantir que a
-regra de negócio crítica seja aplicada de forma consistente e não seja
-duplicada (e, portanto, não seja esquecida) em cada endpoint.
+Centraliza as condições usadas pelos endpoints para garantir que a regra de
+negócio seja aplicada de forma consistente e não seja duplicada em cada
+endpoint.
 """
 from decimal import Decimal
 from typing import List
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
 from backend.app.core.constantes import SENTINELA_CLIENTE_ID
 from backend.app.enum import ReviewStatus
 from backend.app.model.models import Client, GenerationProject
-from backend.app.schemas.filtros_schema import FiltrosQuery
+from backend.app.schemas.filtros_schema import FiltrosQuery, padrao_contem
 
 # potencia_outorgada_kw vem em kW no banco; os endpoints expõem em MW.
 KW_PARA_MW = 1000
 
 
-def _filtro_elegiveis():
+def _sem_proprietario():
     """
-    Condição de filtro BASE usada por todos os endpoints de KPIs/Gráficos.
-
-    ⚠️ REGRA DE NEGÓCIO — NÃO ALTERAR SEM ALINHAR COM O PRODUTO ⚠️
-    ------------------------------------------------------------------
-    1) Filtramos APENAS por `cliente_id IS NOT NULL`. Projetos sem cliente
-       vinculado (ex: dados brutos ainda não consolidados/atribuídos) não
-       devem entrar em nenhum totalizador ou gráfico.
-
-    2) NÃO filtramos por `status_revisao`. Um projeto com pendência de
-       revisão de dado técnico É UM DADO VÁLIDO para fins de portfólio e
-       DEVE continuar sendo contado normalmente nos KPIs e nos gráficos
-       até que a revisão seja concluída.
-    ------------------------------------------------------------------
+    Projeto sem dono definido: ainda não consolidado (cliente_id NULL)
+    ou atribuído ao cliente sentinela ("Não Informado").
     """
-    return GenerationProject.cliente_id.isnot(None)
+    return or_(
+        GenerationProject.cliente_id.is_(None),
+        GenerationProject.cliente_id == SENTINELA_CLIENTE_ID,
+    )
+
+
+def _com_proprietario():
+    """Projeto com cliente real: cliente_id não nulo e diferente do sentinela."""
+    return and_(
+        GenerationProject.cliente_id.isnot(None),
+        GenerationProject.cliente_id != SENTINELA_CLIENTE_ID,
+    )
 
 
 def _condicoes(filtros: FiltrosQuery | None = None) -> list:
     """
-    Regra de elegibilidade (_filtro_elegiveis) + filtros da sidebar.
+    Apenas os filtros da sidebar.
+
+    REGRA DE NEGÓCIO
+    ------------------------------------------------------------------
+    Todo projeto do portfólio entra nos totais e gráficos, com ou sem
+    cliente consolidado e independentemente de `status_revisao`.
+    Projetos sem cliente são contados em "Sem Proprietário" até que o
+    admin aprove a consolidação.
+    ------------------------------------------------------------------
     """
-    condicoes = [_filtro_elegiveis()]
+    condicoes: list = []
     if filtros is None:
         return condicoes
 
     if filtros.origem:
         condicoes.append(GenerationProject.origem == filtros.origem)
+    
     if filtros.cliente:
-        condicoes.append(GenerationProject.cliente_id == filtros.cliente)
+        # Como _condicoes é usada por endpoints que não fazem JOIN com Client,
+        # usamos uma subquery para buscar os IDs dos clientes que batem com o texto digitado.
+        subquery_clientes = select(Client.id).where(
+            Client.nome_oficial.ilike(padrao_contem(filtros.cliente), escape="\\")
+        )
+        condicoes.append(GenerationProject.cliente_id.in_(subquery_clientes))
+        
     if filtros.nome:
-        condicoes.append(GenerationProject.nome_projeto == filtros.nome)
+        # Busca parcial, sem diferenciar maiúsculas: "primavera" acha "UFV Primavera 1"
+        condicoes.append(
+            GenerationProject.nome_projeto.ilike(padrao_contem(filtros.nome), escape="\\")
+        )
     if filtros.uf:
         condicoes.append(GenerationProject.uf == filtros.uf)
     if filtros.municipio:
-        # municipios é JSONB list[str]: contenção (@>), não igualdade
-        condicoes.append(GenerationProject.municipios.contains([filtros.municipio]))
+        # Converte a lista JSONB para texto e faz a busca parcial ignorando maiúsculas/minúsculas
+        condicoes.append(
+            cast(GenerationProject.municipios, String).ilike(
+                padrao_contem(filtros.municipio), escape="\\"
+            )
+        )
     if filtros.ano:
         condicoes.append(GenerationProject.inicio_vigencia_ano == filtros.ano)
     return condicoes
@@ -77,11 +99,10 @@ async def get_kpis(db: AsyncSession, filtros: FiltrosQuery | None = None) -> dic
         )
     )
 
-    # Exclui o sentinela da contagem real de clientes
+    # Clientes reais: DISTINCT ignora NULL; o sentinela também é excluído
     total_clientes = await db.scalar(
         select(func.count(func.distinct(GenerationProject.cliente_id))).where(
-            *condicoes,
-            GenerationProject.cliente_id != SENTINELA_CLIENTE_ID
+            *condicoes, _com_proprietario()
         )
     )
 
@@ -91,11 +112,11 @@ async def get_kpis(db: AsyncSession, filtros: FiltrosQuery | None = None) -> dic
         .where(*condicoes, GenerationProject.status_revisao == ReviewStatus.pendente)
     )
 
-    # Conta separadamente os projetos que caíram no sentinela
+    # Sem proprietário: cliente_id NULL (ainda não consolidado) ou sentinela
     projetos_sem_proprietario = await db.scalar(
         select(func.count())
         .select_from(GenerationProject)
-        .where(*condicoes, GenerationProject.cliente_id == SENTINELA_CLIENTE_ID)
+        .where(*condicoes, _sem_proprietario())
     )
 
     return {
@@ -201,7 +222,7 @@ async def get_ranking_clientes(
     db: AsyncSession, limite: int = 20, filtros: FiltrosQuery | None = None
 ) -> list[dict]:
     """Retorna os top clientes ordenados por potência outorgada total."""
-    
+
     limite_seguro = min(max(1, limite), 100)
 
     stmt = (
@@ -212,7 +233,8 @@ async def get_ranking_clientes(
             func.count(GenerationProject.ceg).label("total_projetos"),
         )
         .join(Client, GenerationProject.cliente_id == Client.id)
-        .where(*_condicoes(filtros))
+        # INNER JOIN é correto aqui; o sentinela não aparece como cliente no ranking
+        .where(*_condicoes(filtros), _com_proprietario())
         .group_by(Client.id, Client.nome_oficial)
         .order_by(func.sum(GenerationProject.potencia_outorgada_kw).desc())
         .limit(limite_seguro)
