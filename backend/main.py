@@ -12,7 +12,8 @@ from backend.app.api.routes import (
     projetos_route, 
     dashboard_route, 
     geolocalizacao_route,
-    etl_runs_route
+    etl_runs_route,
+    clientes_route
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +58,7 @@ app.include_router(geolocalizacao_route.router)
 app.include_router(projetos_route.router)
 app.include_router(dashboard_route.router)
 app.include_router(etl_runs_route.router)
+app.include_router(clientes_route.router)
 
 @app.get("/health")
 def health():
