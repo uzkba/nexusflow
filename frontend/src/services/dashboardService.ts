@@ -30,4 +30,10 @@ export const dashboardService = {
       total_projetos: item.total_projetos ?? 0,
     }));
   },
+
+  // Obras sem proprietário para o radar de prospecção
+  getProjetosSemProprietario: async (filtros?: any) => {
+    const response = await httpClient.get("/api/projetos/sem-proprietario", { params: filtros });
+    return response.data.dados;
+  },
 };

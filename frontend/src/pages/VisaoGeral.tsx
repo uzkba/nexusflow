@@ -1,8 +1,9 @@
 import { useFiltros } from "@/lib/useFiltros";
 import { KpiCards } from "@/components/dashboard/KpiCards";
-import { useOrigemDashboard, useRankingClientes } from "@/hooks/use-dashboard";
+import { useOrigemDashboard, useRankingClientes, useProjetosSemProprietario } from "@/hooks/use-dashboard";
 import { GraficoOrigem } from "@/components/dashboard/GraficoOrigem";
 import { GraficoRanking } from "@/components/dashboard/GraficoRanking";
+import { TabelaSemProprietario } from "@/components/dashboard/TabelaSemProprietario";
 
 export function VisaoGeralPage() {
   const { filtros } = useFiltros();
@@ -13,6 +14,7 @@ export function VisaoGeralPage() {
 
   const { data: graficoOrigem, isLoading: isLoadingOrigem } = useOrigemDashboard(paramsAtivos);
   const { data: graficoRanking, isLoading: isLoadingRanking } = useRankingClientes(paramsAtivos, 10);
+  const { data: projetosSemProprietario, isLoading: isLoadingProjetos } = useProjetosSemProprietario(paramsAtivos);
 
   return (
     <div className="flex-1 space-y-6 p-8">
@@ -49,6 +51,24 @@ export function VisaoGeralPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Nova Secção: Radar de Vendas */}
+        <div className="rounded-xl border bg-card text-card-foreground shadow p-6 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Radar de Vendas: Projetos Sem Proprietário</h3>
+            <span className="text-sm text-muted-foreground">
+              {projetosSemProprietario?.length || 0} oportunidades encontradas
+            </span>
+          </div>
+          
+          {isLoadingProjetos ? (
+            <div className="flex-1 flex items-center justify-center h-32 text-sm text-muted-foreground">
+              Carregando oportunidades...
+            </div>
+          ) : (
+            <TabelaSemProprietario dados={projetosSemProprietario || []} />
+          )}
         </div>
       </div>
     </div>

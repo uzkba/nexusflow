@@ -6,6 +6,7 @@ GET /api/graficos/potencia-uf
 GET /api/graficos/evolucao-anual
 GET /api/graficos/origem
 GET /api/graficos/ranking-clientes
+GET /api/projetos/sem-proprietario
 """
 from typing import Annotated
 
@@ -22,6 +23,7 @@ from backend.app.schemas.dashboard_schema import (
     OrigemResponse,
     PotenciaPorUFResponse,
     RankingClientesResponse,
+    ProjetosSemProprietarioResponse,
 )
 from backend.app.schemas.filtros_schema import FiltrosQuery
 from backend.app.services import dashboard_service
@@ -101,3 +103,17 @@ async def obter_ranking_clientes(
 ) -> RankingClientesResponse:
     dados = await dashboard_service.get_ranking_clientes(db, limite=limite, filtros=filtros)
     return RankingClientesResponse(dados=dados)
+
+
+@router.get(
+    "/api/projetos/sem-proprietario",
+    response_model=ProjetosSemProprietarioResponse,
+    summary="Lista de obras órfãs para prospecção",
+    description="Retorna projetos sem cliente consolidado que não estão na fila de pendências.",
+)
+async def obter_projetos_sem_proprietario(
+    filtros: Annotated[FiltrosQuery, Query()],
+    db: AsyncSession = Depends(get_db),
+) -> ProjetosSemProprietarioResponse:
+    dados = await dashboard_service.get_projetos_sem_proprietario(db, filtros)
+    return ProjetosSemProprietarioResponse(dados=dados)

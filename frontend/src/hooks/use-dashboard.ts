@@ -8,6 +8,7 @@ export const DASHBOARD_KEYS = {
   kpis: (filtros: DashboardFiltros) => [...DASHBOARD_KEYS.all, "kpis", filtros] as const,
   origem: (filtros: DashboardFiltros) => [...DASHBOARD_KEYS.all, "origem", filtros] as const,
   ranking: (filtros: DashboardFiltros, limite: number) => [...DASHBOARD_KEYS.all, "ranking", filtros, limite] as const,
+  semProprietario: (filtros: DashboardFiltros) => [...DASHBOARD_KEYS.all, "sem-proprietario", filtros] as const,
 };
 
 export function useKPIs(filtros: DashboardFiltros = {}) {
@@ -28,5 +29,12 @@ export function useRankingClientes(filtros: DashboardFiltros = {}, limite: numbe
   return useQuery({
     queryKey: DASHBOARD_KEYS.ranking(filtros, limite),
     queryFn: () => dashboardService.getRanking(filtros, limite),
+  });
+}
+
+export function useProjetosSemProprietario(filtros: DashboardFiltros = {}) {
+  return useQuery({
+    queryKey: DASHBOARD_KEYS.semProprietario(filtros),
+    queryFn: () => dashboardService.getProjetosSemProprietario(filtros),
   });
 }

@@ -2,7 +2,9 @@
 from typing import Sequence, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select, asc, desc
+from fastapi import HTTPException, status
+
+from sqlalchemy import func, select, asc, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # --- Ajuste o import do model para o caminho real ---
@@ -105,3 +107,21 @@ async def listar_projetos_paginados(
     itens = resultado.scalars().all()
 
     return itens, total
+
+async def vincular_cliente(db: AsyncSession, ceg: str, cliente_id: str) -> dict:
+    stmt = (
+        update(GenerationProject)
+        .where(GenerationProject.ceg == ceg)
+        .values(cliente_id=cliente_id)
+    )
+
+    resultado = await db.execute(stmt)
+
+    if resultado.rowcount == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Projeto com CEG {ceg} não encontrado."
+        )
+
+    await db.commit()
+    return {"mensagem": "Cliente vinculado com sucesso", "ceg": ceg}

@@ -20,7 +20,7 @@ class KPIsResponse(BaseModel):
     )
     projetos_pendentes_revisao: int = Field(
         ..., description="Projetos cujo status_revisao ainda está pendente "
-                          "(informativo — NÃO são excluídos dos totais acima)"
+                         "(informativo — NÃO são excluídos dos totais acima)"
     )
     projetos_sem_proprietario: int = Field(
         ..., description="Projetos sem cliente consolidado (cliente_id nulo ou sentinela)"
@@ -89,3 +89,19 @@ class RankingClienteItem(BaseModel):
 
 class RankingClientesResponse(BaseModel):
     dados: List[RankingClienteItem]
+
+
+class ProjetoSemProprietarioItem(BaseModel):
+    """Um item da lista de projetos órfãos para o radar de prospecção."""
+
+    ceg: str = Field(..., description="Código Único ANEEL")
+    nome_projeto: str = Field(..., description="Nome do projeto de geração")
+    uf: str | None = Field(None, description="Unidade Federativa")
+    potencia_mw: float = Field(..., description="Potência outorgada convertida para MW")
+    fase: str | None = Field(None, description="Fase atual do projeto")
+
+
+class ProjetosSemProprietarioResponse(BaseModel):
+    """Resposta contendo a lista de projetos sem proprietário."""
+    
+    dados: List[ProjetoSemProprietarioItem]
