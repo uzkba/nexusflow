@@ -112,11 +112,18 @@ async def get_kpis(db: AsyncSession, filtros: FiltrosQuery | None = None) -> dic
         .where(*condicoes, GenerationProject.status_revisao == ReviewStatus.pendente)
     )
 
-    # Sem proprietário: cliente_id NULL (ainda não consolidado) ou sentinela
+    # Sem proprietário: cliente_id NULL ou sentinela, MAS exclui os que estão na fila de consolidação
     projetos_sem_proprietario = await db.scalar(
         select(func.count())
         .select_from(GenerationProject)
-        .where(*condicoes, _sem_proprietario())
+        .where(
+            *condicoes, 
+            _sem_proprietario(),
+            or_(
+                GenerationProject.status_revisao.is_(None),
+                GenerationProject.status_revisao != ReviewStatus.pendente
+            )
+        )
     )
 
     return {
