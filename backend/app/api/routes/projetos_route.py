@@ -2,13 +2,14 @@
 import math
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # --- ajustar para os imports reais do projeto nexusflow ---
 from backend.app.db.session import get_db
-from backend.app.schemas.projeto_schema import PaginatedResponse, ProjetoOut
+from backend.app.schemas.projeto_schema import PaginatedResponse, ProjetoOut, VincularClienteRequest
 from backend.app.services.projeto_service import listar_projetos_paginados
+from backend.app.services import projeto_service
 
 router = APIRouter(prefix="/api", tags=["Projetos"])
 
@@ -57,3 +58,14 @@ async def listar_projetos(
         size=size,
         pages=pages,
     )
+
+@router.patch(
+    "/{ceg}/vincular", 
+    summary="Vincular um cliente a um projeto órfão"
+)
+async def vincular_cliente_ao_projeto(
+    payload: VincularClienteRequest,
+    ceg: str = Path(..., description="Código Único ANEEL (CEG) do projeto"),
+    db: AsyncSession = Depends(get_db)
+):
+    return await projeto_service.vincular_cliente(db, ceg, str(payload.cliente_id))

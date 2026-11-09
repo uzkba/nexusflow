@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
@@ -41,3 +41,6 @@ class PaginatedResponse(BaseModel, Generic[T]):
     page: int
     size: int
     pages: int
+
+class VincularClienteRequest(BaseModel):
+    cliente_id: uuid.UUID = Field(..., description="ID do cliente que será o novo proprietário da obra")

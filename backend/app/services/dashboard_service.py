@@ -258,3 +258,41 @@ async def get_ranking_clientes(
         }
         for cliente_id, nome_oficial, potencia_total_kw, total_projetos in resultado.all()
     ]
+
+async def get_projetos_sem_proprietario(
+    db: AsyncSession, filtros: FiltrosQuery | None = None, limite: int = 50
+) -> list[dict]:
+    """Retorna a lista de projetos sem proprietário para o radar de vendas."""
+    
+    stmt = (
+        select(
+            GenerationProject.ceg,
+            GenerationProject.nome_projeto,
+            GenerationProject.uf,
+            GenerationProject.potencia_outorgada_kw,
+            GenerationProject.fase
+        )
+        .where(
+            *_condicoes(filtros),
+            _sem_proprietario(),
+            or_(
+                GenerationProject.status_revisao.is_(None),
+                GenerationProject.status_revisao != ReviewStatus.pendente
+            )
+        )
+        .order_by(GenerationProject.potencia_outorgada_kw.desc())
+        .limit(limite)
+    )
+
+    resultado = await db.execute(stmt)
+
+    return [
+        {
+            "ceg": ceg,
+            "nome_projeto": nome_projeto or "Sem Nome",
+            "uf": uf,
+            "potencia_mw": float(Decimal(potencia_outorgada_kw or 0) / KW_PARA_MW),
+            "fase": fase or "Não informada",
+        }
+        for ceg, nome_projeto, uf, potencia_outorgada_kw, fase in resultado.all()
+    ]
