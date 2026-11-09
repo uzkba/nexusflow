@@ -80,6 +80,7 @@ export function FiltersPanel() {
         </Select>
       </div>
 
+      {/* AQUI ESTÁ A ALTERAÇÃO: Cliente agora é um Input de texto */}
       <div className="flex flex-col gap-2">
         <Label htmlFor="cliente" className={LABEL_CLASS}>Cliente</Label>
         <Input 
