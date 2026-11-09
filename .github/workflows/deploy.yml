@@ -1,0 +1,18 @@
+name: Deploy produção
+
+on:
+  push:
+    branches: [deploy-nexusflow]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-nexusflow
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    steps:
+      - name: Rodar deploy
+        run: /home/uzkba/nexusflow/deploy.sh
