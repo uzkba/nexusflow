@@ -23,7 +23,7 @@ export function AppHeader({ updatedAt }: { updatedAt?: Date }) {
             <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">
               Painel Executivo
             </p>
-            <h1 className="text-2xl font-bold tracking-tight text-forest">Portfólio de Geração</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-forest">Portfólio Geração</h1>
           </div>
         </div>
 
