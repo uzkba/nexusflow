@@ -40,6 +40,8 @@ class ConsolidacaoPendenteOut(BaseModel):
     decidido_por: Optional[UUID] = None
     decidido_em: Optional[datetime] = None
 
+    criado_em: Optional[datetime] = None
+
     @field_validator("cegs_relacionados", mode="before")
     @classmethod
     def _extrair_ceg_do_relationship(cls, v: Any) -> Optional[list[str]]:
