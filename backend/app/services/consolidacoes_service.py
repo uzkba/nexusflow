@@ -207,7 +207,11 @@ async def _listar(
         key=lambda x: (x["cliente_sugerido_nome"] or "", x["nome_bruto"] or "")
     )
 
-
+async def listar_pendentes(
+    db: AsyncSession, filtros: FiltrosQuery | None = None
+) -> list[dict]:
+    """Pendências abertas (fila de revisão)."""
+    return await _listar(db, filtros, [ConsolidationStatus.pendente])
 
 
 async def listar_decididas(
