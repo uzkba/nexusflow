@@ -16,8 +16,8 @@ def setup_scheduler() -> None:
     scheduler.add_job(
         scheduled_daily_etl_job,
         trigger="cron",
-        hour=12,
-        minute=5,
+        hour=15,
+        minute=11,
         id="siga_daily_etl",
         replace_existing=True
     )
