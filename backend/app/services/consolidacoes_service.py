@@ -150,7 +150,7 @@ async def _listar(
                 "cegs_relacionados": pendencia.cegs_relacionados,
                 
                 # PEGANDO A DATA EXATA QUE O SISTEMA/ETL CRIOU A PENDÊNCIA
-                "criado_em": pendencia.criado_em, 
+                "criado_em": None, 
                 
                 # Campos internos para agregação iterativa segura (set)
                 "_ufs": set(),
@@ -161,15 +161,20 @@ async def _listar(
 
         # Acumula os dados dos projetos vinculados
         if projeto and projeto.ceg not in pendentes_dict[pid]["_projetos_vistos"]:
-            curr = pendentes_dict[pid]
-            curr["_projetos_vistos"].add(projeto.ceg)
-            curr["potencia_total_kw"] += (projeto.potencia_outorgada_kw or 0.0)
-            
-            if projeto.uf:
-                curr["_ufs"].add(projeto.uf)
-            if projeto.municipios:
-                # municipios no modelo é list[str]
-                curr["_municipios"].update(projeto.municipios)
+                curr = pendentes_dict[pid]
+                curr["_projetos_vistos"].add(projeto.ceg)
+                curr["potencia_total_kw"] += (projeto.potencia_outorgada_kw or 0.0)
+                
+                # --- ADICIONE ESTAS DUAS LINHAS AQUI ---
+                if not curr["criado_em"] and projeto.criado_em:
+                    curr["criado_em"] = projeto.criado_em
+                # ---------------------------------------
+                
+                if projeto.uf:
+                    curr["_ufs"].add(projeto.uf)
+                if projeto.municipios:
+                    # municipios no modelo é list[str]
+                    curr["_municipios"].update(projeto.municipios)
 
     # Conta quantos nomes foram sugeridos para o mesmo cliente_sugerido_id em todo o pool
     contagem_sugeridos = Counter(
