@@ -81,6 +81,12 @@ export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia, modo = 
             {etiqueta}
           </span>
         </div>
+        
+        {/* NOVA DATA ADICIONADA AQUI */}
+        {pendencia.criado_em && (
+          <p className="text-xs text-gray-500 mt-1">Projeto entrou no sistema em: {formatarData(pendencia.criado_em)}</p>
+        )}
+
         {isDecidida && pendencia.decidido_em && (
           <p className="text-xs text-gray-500">Decidida em {formatarData(pendencia.decidido_em)}</p>
         )}

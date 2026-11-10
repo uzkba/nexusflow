@@ -148,6 +148,7 @@ async def _listar(
                 "decidido_por": pendencia.decidido_por,
                 "decidido_em": pendencia.decidido_em,
                 "cegs_relacionados": pendencia.cegs_relacionados,
+                "criado_em": None, # INCLUÍDO AQUI
                 
                 # Campos internos para agregação iterativa segura (set)
                 "_ufs": set(),
@@ -161,6 +162,10 @@ async def _listar(
             curr = pendentes_dict[pid]
             curr["_projetos_vistos"].add(projeto.ceg)
             curr["potencia_total_kw"] += (projeto.potencia_outorgada_kw or 0.0)
+            
+            # INCLUÍDO AQUI: Captura a data de criação do projeto (mantém a primeira encontrada)
+            if not curr["criado_em"] and projeto.criado_em:
+                curr["criado_em"] = projeto.criado_em
             
             if projeto.uf:
                 curr["_ufs"].add(projeto.uf)
@@ -203,11 +208,6 @@ async def _listar(
     )
 
 
-async def listar_pendentes(
-    db: AsyncSession, filtros: FiltrosQuery | None = None
-) -> list[dict]:
-    """Pendências abertas (fila de revisão)."""
-    return await _listar(db, filtros, [ConsolidationStatus.pendente])
 
 
 async def listar_decididas(
