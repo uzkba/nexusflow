@@ -148,7 +148,9 @@ async def _listar(
                 "decidido_por": pendencia.decidido_por,
                 "decidido_em": pendencia.decidido_em,
                 "cegs_relacionados": pendencia.cegs_relacionados,
-                "criado_em": None, # INCLUÍDO AQUI
+                
+                # PEGANDO A DATA EXATA QUE O SISTEMA/ETL CRIOU A PENDÊNCIA
+                "criado_em": pendencia.criado_em, 
                 
                 # Campos internos para agregação iterativa segura (set)
                 "_ufs": set(),
@@ -162,10 +164,6 @@ async def _listar(
             curr = pendentes_dict[pid]
             curr["_projetos_vistos"].add(projeto.ceg)
             curr["potencia_total_kw"] += (projeto.potencia_outorgada_kw or 0.0)
-            
-            # INCLUÍDO AQUI: Captura a data de criação do projeto (mantém a primeira encontrada)
-            if not curr["criado_em"] and projeto.criado_em:
-                curr["criado_em"] = projeto.criado_em
             
             if projeto.uf:
                 curr["_ufs"].add(projeto.uf)
@@ -201,10 +199,12 @@ async def _listar(
             reverse=True,
         )
 
-    # Ordena alfabeticamente pelo nome sugerido para organizar os grupos na tela
+    # Ordena pendentes para mostrar quem chegou por último (mais recente) primeiro no topo
+    epoca = datetime.min.replace(tzinfo=timezone.utc)
     return sorted(
         resultados_finais,
-        key=lambda x: (x["cliente_sugerido_nome"] or "", x["nome_bruto"] or "")
+        key=lambda x: x.get("criado_em") or epoca,
+        reverse=True
     )
 
 async def listar_pendentes(

@@ -84,7 +84,9 @@ export const PendenciaCard: React.FC<PendenciaCardProps> = ({ pendencia, modo = 
         
         {/* NOVA DATA ADICIONADA AQUI */}
         {pendencia.criado_em && (
-          <p className="text-xs text-gray-500 mt-1">Projeto entrou no sistema em: {formatarData(pendencia.criado_em)}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Atualização recebida do ETL em: <span className="font-medium text-gray-700">{formatarData(pendencia.criado_em)}</span>
+          </p>
         )}
 
         {isDecidida && pendencia.decidido_em && (
