@@ -20,7 +20,7 @@ class InfraSettings(BaseSettings):
     ETL_CRON_MINUTE: str = "0"
     
     # Paths
-    RAW_DATA_DIR: Path = Path("/tmp/nexusflow/raw")
+    RAW_DATA_DIR: Path = Path("/app/data/raw")
 
     # Load variables from the .env file and ignore any extra variables
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
