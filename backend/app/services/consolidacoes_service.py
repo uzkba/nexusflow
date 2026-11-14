@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status as http_status
-from sqlalchemy import func, or_, select, update, text
+from sqlalchemy import and_, func, or_, select, update, text
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,6 +49,7 @@ async def _listar(
     statuses: list[ConsolidationStatus],
     apenas_consolidacao_nome: bool = False,
     mais_recentes_primeiro: bool = False,
+    apenas_com_projeto_ativo: bool = False,
 ) -> list[dict]:
     """
     Retorna as pendências (ou decisões) enriquecidas com agregados (UFs, municípios,
@@ -71,13 +72,30 @@ async def _listar(
         # Traz projetos vinculados tanto por nome (consolidacao) quanto por CEG (alteracao)
         .outerjoin(
             GenerationProject,
-            or_(
-                GenerationProject.nome_bruto_principal_id == PendingConsolidation.nome_bruto_id,
-                GenerationProject.ceg == PendingConsolidation.ceg
-            )
+            and_(
+                or_(
+                    GenerationProject.nome_bruto_principal_id == PendingConsolidation.nome_bruto_id,
+                    GenerationProject.ceg == PendingConsolidation.ceg,
+                ),
+                GenerationProject.removido_da_fonte_em.is_(None),
+            ),
         )
         .where(PendingConsolidation.status.in_(statuses))
     )
+
+    if apenas_com_projeto_ativo:
+        stmt = stmt.where(
+            select(GenerationProject.ceg)
+            .where(
+                or_(
+                    GenerationProject.nome_bruto_principal_id == PendingConsolidation.nome_bruto_id,
+                    GenerationProject.ceg == PendingConsolidation.ceg,
+                ),
+                GenerationProject.removido_da_fonte_em.is_(None),
+            )
+            .correlate(PendingConsolidation)
+            .exists()
+        )
 
     if apenas_consolidacao_nome:
         stmt = stmt.where(
@@ -216,7 +234,9 @@ async def listar_pendentes(
     db: AsyncSession, filtros: FiltrosQuery | None = None
 ) -> list[dict]:
     """Pendências abertas (fila de revisão)."""
-    return await _listar(db, filtros, [ConsolidationStatus.pendente])
+    return await _listar(
+        db, filtros, [ConsolidationStatus.pendente], apenas_com_projeto_ativo=True
+    )
 
 
 async def listar_decididas(
@@ -284,6 +304,27 @@ async def _buscar_decidida(db: AsyncSession, item_id: int) -> PendingConsolidati
     return item
 
 
+async def _resolver_diff_de_dono(db: AsyncSession, nome_bruto_id: int) -> None:
+    """
+    Decidir a consolidação de um nome resolve o diff 'nome_bruto_principal_id'
+    dos projetos desse nome: a mudança de dono é justamente o que o revisor
+    avaliou. Outros diffs técnicos (potência, UF, município...) permanecem.
+    """
+    resultado = await db.execute(
+        select(GenerationProject).where(
+            GenerationProject.nome_bruto_principal_id == nome_bruto_id,
+            GenerationProject.diff_pendente.isnot(None),
+        )
+    )
+    for projeto in resultado.scalars():
+        diff = projeto.diff_pendente
+        if not isinstance(diff, dict) or "nome_bruto_principal_id" not in diff:
+            continue
+        restante = {k: v for k, v in diff.items() if k != "nome_bruto_principal_id"}
+        projeto.diff_pendente = restante or None
+    await db.flush()
+
+
 async def _aplicar_aprovacao(
     db: AsyncSession, item: PendingConsolidation, usuario_id: UUID
 ) -> None:
@@ -305,6 +346,9 @@ async def _aplicar_aprovacao(
             GenerationProject.nome_bruto_principal_id == item.nome_bruto_id
         ).values(cliente_id=item.cliente_sugerido_id)
         await db.execute(stmt_projetos)
+
+        # 3. Decidir o nome resolve o diff de mudança de dono desses projetos
+        await _resolver_diff_de_dono(db, item.nome_bruto_id)
 
         # 3. Remover status 'pendente' apenas dos projetos que NÃO têm diff técnico
         stmt_status = update(GenerationProject).where(
@@ -344,6 +388,9 @@ async def _aplicar_rejeicao(
             GenerationProject.nome_bruto_principal_id == item.nome_bruto_id
         ).values(cliente_id=novo_cliente.id)
         await db.execute(stmt_projetos)
+
+        # 3. Decidir o nome resolve o diff de mudança de dono desses projetos
+        await _resolver_diff_de_dono(db, item.nome_bruto_id)
 
         # 3. Marcar como 'rejeitado' os projetos que NÃO têm diff técnico (os que têm diff
         #    continuam pendentes, aguardando a revisão do dado técnico)

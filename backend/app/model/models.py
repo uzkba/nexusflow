@@ -180,6 +180,9 @@ class GenerationProject(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
+    removido_da_fonte_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    motivo_remocao: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
 class EtlRun(Base):
     __tablename__ = "etl_runs"
 

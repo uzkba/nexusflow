@@ -52,7 +52,7 @@ def _condicoes(filtros: FiltrosQuery | None = None) -> list:
     admin aprove a consolidação.
     ------------------------------------------------------------------
     """
-    condicoes: list = []
+    condicoes: list = [GenerationProject.removido_da_fonte_em.is_(None)]
     if filtros is None:
         return condicoes
 
