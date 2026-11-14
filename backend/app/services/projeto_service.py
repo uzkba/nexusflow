@@ -64,7 +64,10 @@ def _aplicar_filtros(
 
     # REGRA CRÍTICA: Não adicionamos nenhum filtro sobre `status_revisao`.
     # Todos os projetos devem retornar independentemente se estão pendentes ou aprovados.
-    
+
+    # Projetos que a ANEEL removeu do CSV (ou saíram do filtro) ficam fora das telas.
+    stmt = stmt.where(GenerationProject.removido_da_fonte_em.is_(None))
+
     return stmt
 
 async def listar_projetos_paginados(

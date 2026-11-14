@@ -8,7 +8,7 @@ import asyncio
 import logging
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.constantes import SENTINELA_CLIENTE_ID
@@ -31,6 +31,56 @@ async def _carregar_mapeamento_nomes(session: AsyncSession, nomes_buscados: set[
     stmt = select(RawName).where(RawName.nome_bruto.in_(nomes_buscados))
     resultado = await session.execute(stmt)
     return {rn.nome_bruto: rn for rn in resultado.scalars()}
+
+
+MIN_CEGS_CSV = 20_000
+MAX_FRACAO_REMOVIDA = 0.30  # trava contra CSV truncado ou filtro quebrado
+
+
+async def _reconciliar_removidos(session: AsyncSession, df, df_filtrado) -> dict:
+    ceg_csv = set(df["CodCEG"].dropna().astype(str).str.strip())
+    ceg_elegiveis = set(df_filtrado["CodCEG"].astype(str).str.strip())
+
+    if len(ceg_csv) < MIN_CEGS_CSV:
+        raise RuntimeError(f"CSV com só {len(ceg_csv)} CEGs; reconciliação abortada.")
+
+    cegs_banco = set((await session.scalars(select(GenerationProject.ceg))).all())
+    ausentes = cegs_banco - ceg_csv
+    fora_filtro = (cegs_banco & ceg_csv) - ceg_elegiveis
+    voltaram = cegs_banco & ceg_elegiveis
+
+    saindo = len(ausentes) + len(fora_filtro)
+    if cegs_banco and saindo / len(cegs_banco) > MAX_FRACAO_REMOVIDA:
+        raise RuntimeError(
+            f"Reconciliação abortada: {saindo} de {len(cegs_banco)} projetos "
+            f"sairiam (limite {MAX_FRACAO_REMOVIDA:.0%})."
+        )
+
+    async def _marcar(cegs: set, motivo: str):
+        if cegs:
+            await session.execute(
+                update(GenerationProject)
+                .where(
+                    GenerationProject.ceg.in_(cegs),
+                    GenerationProject.removido_da_fonte_em.is_(None),
+                )
+                .values(removido_da_fonte_em=func.now(), motivo_remocao=motivo)
+            )
+
+    await _marcar(ausentes, "ausente_no_csv")
+    await _marcar(fora_filtro, "fora_do_filtro")
+
+    if voltaram:
+        await session.execute(
+            update(GenerationProject)
+            .where(
+                GenerationProject.ceg.in_(voltaram),
+                GenerationProject.removido_da_fonte_em.is_not(None),
+            )
+            .values(removido_da_fonte_em=None, motivo_remocao=None)
+        )
+
+    return {"ausentes": len(ausentes), "fora_filtro": len(fora_filtro), "voltaram": len(voltaram)}
 
 
 async def orquestrar_carga(csv_path: str, esperado: int | None):
@@ -106,7 +156,9 @@ async def orquestrar_carga(csv_path: str, esperado: int | None):
             
         # 5. Executar Upsert em bloco e Commitar
         await upsert_projetos_geracao(session, lote_final)
+        resumo_recon = await _reconciliar_removidos(session, df, df_filtrado)
         await session.commit()
+        logger.info(f"Reconciliação: {resumo_recon}")
         
         # 6. Avaliar o que aconteceu (o upsert modifica o dict do lote_final in-place com o diff)
         total_com_diff = sum(1 for r in lote_final if r.get("diff_pendente"))

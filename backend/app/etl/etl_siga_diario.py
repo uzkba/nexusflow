@@ -29,6 +29,13 @@ from backend.app.services.etl_service import track_etl_run
 logger = logging.getLogger("etl.siga_diario")
 
 
+def limpar_raw_antigos(raw_dir: Path, manter: int = 14) -> None:
+    """Mantém só os N CSVs mais recentes em raw_dir."""
+    arquivos = sorted(raw_dir.glob("siga-empreendimentos-geracao-diario_*.csv"))
+    for f in arquivos[:-manter]:
+        f.unlink(missing_ok=True)
+
+
 async def run_siga_daily_download(db: AsyncSession, raw_dir: Path) -> None:
     """Executa a rodada do SIGA injetando o status e os dados no PostgreSQL."""
     logger.info("Iniciando rodada SIGA diário")
@@ -118,6 +125,34 @@ async def run_siga_daily_download(db: AsyncSession, raw_dir: Path) -> None:
             
             if valores_novos.tem_valores_novos:
                 logger.warning("Valores novos de Fase/Origem detectados (fora da lista conhecida): %s", valores_novos.as_dict())
+
+        # ---------------------------------------------------------
+        # ETAPA 5: nomes_brutos -> projetos (+ reconciliação) -> candidatos
+        # ---------------------------------------------------------
+        from backend.app.db.session import AsyncSessionLocal
+        from .populate_nomes_brutos import main as populate_nomes_main
+        from .carregar_projetos import orquestrar_carga
+        from backend.app.etl.gerar_candidatos import gerar_candidatos
+
+        csv_path = str(download_result.raw_path)
+        try:
+            await populate_nomes_main(csv_path, None)
+            await orquestrar_carga(csv_path, None)
+            async with AsyncSessionLocal() as sessao_candidatos:
+                await gerar_candidatos(sessao_candidatos)
+        except Exception as exc:
+            erro_log = {
+                "tipo": "load",
+                "mensagem": str(exc),
+                "raw_file_salvo": True,
+                "raw_file_path": csv_path,
+                "download_sha256": download_result.sha256,
+            }
+            etl_run.erros = (etl_run.erros or []) + [erro_log]
+            logger.error("Falha na carga de projetos: %s", exc)
+            raise
+
+        limpar_raw_antigos(raw_dir)
 
         logger.info(
             "Rodada SIGA concluída: linhas=%d, avisos=%s",
